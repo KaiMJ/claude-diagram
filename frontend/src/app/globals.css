@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 :root {
+  /* Base theme */
   --background: 0 0% 98%;
   --foreground: 222.2 84% 4.9%;
   --card: 0 0% 100%;
@@ -18,15 +19,85 @@
   --border: 214.3 31.8% 91.4%;
   --radius: 0.5rem;
 
-  /* Node colors for light mode */
-  --node-default-bg: 0 0% 100%;
-  --node-default-border: 214.3 31.8% 85%;
-  --node-default-text: 222.2 84% 4.9%;
+  /* Canvas */
   --canvas-bg: 210 20% 98%;
   --canvas-dots: 214.3 31.8% 85%;
+
+  /* Node: Default */
+  --node-default-bg: #ffffff;
+  --node-default-border: #cbd5e1;
+  --node-default-text: #1e293b;
+  --node-default-shadow: rgba(0, 0, 0, 0.1);
+
+  /* Node: Gold */
+  --node-gold-bg: #fef3c7;
+  --node-gold-border: #f59e0b;
+  --node-gold-text: #92400e;
+
+  /* Node: Silver */
+  --node-silver-bg: #f1f5f9;
+  --node-silver-border: #94a3b8;
+  --node-silver-text: #475569;
+
+  /* Node: Bronze */
+  --node-bronze-bg: #fed7aa;
+  --node-bronze-border: #ea580c;
+  --node-bronze-text: #9a3412;
+
+  /* Node: Primary */
+  --node-primary-bg: #dbeafe;
+  --node-primary-border: #3b82f6;
+  --node-primary-text: #1e40af;
+
+  /* Node: Success */
+  --node-success-bg: #dcfce7;
+  --node-success-border: #22c55e;
+  --node-success-text: #166534;
+
+  /* Node: Warning */
+  --node-warning-bg: #fef9c3;
+  --node-warning-border: #eab308;
+  --node-warning-text: #854d0e;
+
+  /* Node: Error */
+  --node-error-bg: #fee2e2;
+  --node-error-border: #ef4444;
+  --node-error-text: #991b1b;
+
+  /* Group: Control Plane */
+  --group-control-bg: rgba(147, 51, 234, 0.08);
+  --group-control-border: #9333ea;
+
+  /* Group: Bronze */
+  --group-bronze-bg: rgba(234, 88, 12, 0.08);
+  --group-bronze-border: #ea580c;
+
+  /* Group: Silver */
+  --group-silver-bg: rgba(148, 163, 184, 0.08);
+  --group-silver-border: #94a3b8;
+
+  /* Group: Gold */
+  --group-gold-bg: rgba(245, 158, 11, 0.08);
+  --group-gold-border: #f59e0b;
+
+  /* Group: Query Engine */
+  --group-query-bg: rgba(59, 130, 246, 0.08);
+  --group-query-border: #3b82f6;
+
+  /* Group: External */
+  --group-external-bg: rgba(107, 114, 128, 0.08);
+  --group-external-border: #6b7280;
+
+  /* Edge colors */
+  --edge-standard: #64748b;
+  --edge-read: #22c55e;
+  --edge-write: #3b82f6;
+  --edge-error: #ef4444;
+  --edge-reference: #a855f7;
 }
 
 .dark {
+  /* Base theme */
   --background: 222.2 84% 4.9%;
   --foreground: 210 40% 98%;
   --card: 222.2 84% 8%;
@@ -41,12 +112,81 @@
   --accent-foreground: 210 40% 98%;
   --border: 217.2 32.6% 25%;
 
-  /* Node colors for dark mode */
-  --node-default-bg: 222.2 84% 8%;
-  --node-default-border: 217.2 32.6% 30%;
-  --node-default-text: 210 40% 98%;
+  /* Canvas */
   --canvas-bg: 222.2 84% 6%;
   --canvas-dots: 217.2 32.6% 20%;
+
+  /* Node: Default */
+  --node-default-bg: #1e293b;
+  --node-default-border: #475569;
+  --node-default-text: #f1f5f9;
+  --node-default-shadow: rgba(0, 0, 0, 0.3);
+
+  /* Node: Gold */
+  --node-gold-bg: #78350f;
+  --node-gold-border: #fbbf24;
+  --node-gold-text: #fef3c7;
+
+  /* Node: Silver */
+  --node-silver-bg: #334155;
+  --node-silver-border: #94a3b8;
+  --node-silver-text: #e2e8f0;
+
+  /* Node: Bronze */
+  --node-bronze-bg: #7c2d12;
+  --node-bronze-border: #fb923c;
+  --node-bronze-text: #fed7aa;
+
+  /* Node: Primary */
+  --node-primary-bg: #1e3a8a;
+  --node-primary-border: #60a5fa;
+  --node-primary-text: #dbeafe;
+
+  /* Node: Success */
+  --node-success-bg: #14532d;
+  --node-success-border: #4ade80;
+  --node-success-text: #dcfce7;
+
+  /* Node: Warning */
+  --node-warning-bg: #713f12;
+  --node-warning-border: #facc15;
+  --node-warning-text: #fef9c3;
+
+  /* Node: Error */
+  --node-error-bg: #7f1d1d;
+  --node-error-border: #f87171;
+  --node-error-text: #fee2e2;
+
+  /* Group: Control Plane */
+  --group-control-bg: rgba(147, 51, 234, 0.15);
+  --group-control-border: #a855f7;
+
+  /* Group: Bronze */
+  --group-bronze-bg: rgba(234, 88, 12, 0.15);
+  --group-bronze-border: #fb923c;
+
+  /* Group: Silver */
+  --group-silver-bg: rgba(148, 163, 184, 0.15);
+  --group-silver-border: #cbd5e1;
+
+  /* Group: Gold */
+  --group-gold-bg: rgba(245, 158, 11, 0.15);
+  --group-gold-border: #fbbf24;
+
+  /* Group: Query Engine */
+  --group-query-bg: rgba(59, 130, 246, 0.15);
+  --group-query-border: #60a5fa;
+
+  /* Group: External */
+  --group-external-bg: rgba(107, 114, 128, 0.15);
+  --group-external-border: #9ca3af;
+
+  /* Edge colors */
+  --edge-standard: #94a3b8;
+  --edge-read: #4ade80;
+  --edge-write: #60a5fa;
+  --edge-error: #f87171;
+  --edge-reference: #c084fc;
 }
 
 body {

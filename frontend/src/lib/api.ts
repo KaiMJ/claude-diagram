@@ -97,17 +97,11 @@ export async function saveLayout(slug: string, nodes: Node[], edges: Edge[]): Pr
   if (!res.ok) throw new Error(`Failed to save layout: ${slug}`);
 }
 
-interface ConvertOptions {
-  isDark?: boolean;
-}
-
 // Convert YAML data to React Flow nodes/edges
 export function convertToReactFlow(
   data: DiagramData,
-  savedLayout?: LayoutData | null,
-  options: ConvertOptions = {}
+  savedLayout?: LayoutData | null
 ): { nodes: Node[]; edges: Edge[] } {
-  const { isDark = false } = options;
   const nodes: Node[] = [];
   const edges: Edge[] = [];
 
@@ -116,7 +110,7 @@ export function convertToReactFlow(
   // Convert groups first (they need to exist before child nodes)
   for (const group of data.groups || []) {
     const saved = layoutMap.get(group.id);
-    const style = getGroupStyle(group.style || "controlPlane", isDark);
+    const style = getGroupStyle(group.style || "controlPlane");
 
     nodes.push({
       id: group.id,
@@ -135,7 +129,7 @@ export function convertToReactFlow(
   // Convert nodes
   for (const node of data.nodes || []) {
     const saved = layoutMap.get(node.id);
-    const style = getNodeStyle(node.style || "default", isDark);
+    const style = getNodeStyle(node.style || "default");
 
     nodes.push({
       id: node.id,
@@ -153,7 +147,7 @@ export function convertToReactFlow(
 
   // Convert edges
   for (const edge of data.edges || []) {
-    const styleDef = getEdgeStyle(edge.style || "standard", isDark);
+    const styleDef = getEdgeStyle(edge.style || "standard");
 
     edges.push({
       id: `${edge.source}-${edge.target}`,

@@ -16,7 +16,6 @@ import {
   ReactFlowProvider,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useTheme } from "next-themes";
 
 import ResizableNode from "./ResizableNode";
 import ResizableGroupNode from "./ResizableGroupNode";
@@ -48,13 +47,9 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
   const [direction, setDirection] = useState<LayoutDirection>("TB");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { fitView } = useReactFlow();
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
 
   // Store original converted nodes/edges for re-layout
   const originalDataRef = useRef<DiagramDataRef | null>(null);
-  // Store raw diagram data for theme changes
-  const rawDataRef = useRef<{ diagramData: unknown; layoutData: unknown } | null>(null);
 
   // Build adjacency map for finding connected nodes
   const adjacencyMap = useMemo(() => {
@@ -84,25 +79,20 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
       const isGroup = selectedNode.type === "resizableGroup";
 
       if (isGroup) {
-        // Highlight the group itself
         nodeIds.add(selectedId);
-        // Highlight all children of this group
         for (const node of nodes) {
           if (node.parentId === selectedId) {
             nodeIds.add(node.id);
           }
         }
       } else {
-        // Highlight the selected node
         nodeIds.add(selectedId);
-        // Highlight directly connected nodes
         const connected = adjacencyMap.get(selectedId);
         if (connected) {
           for (const connectedId of connected) {
             nodeIds.add(connectedId);
           }
         }
-        // Highlight edges connected to the selected node
         for (const edge of edges) {
           if (edge.source === selectedId || edge.target === selectedId) {
             edgeIds.add(edge.id);
@@ -111,7 +101,7 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
       }
     }
 
-    // For groups, highlight edges between highlighted nodes
+    // Highlight edges between highlighted nodes
     for (const edge of edges) {
       if (nodeIds.has(edge.source) && nodeIds.has(edge.target)) {
         edgeIds.add(edge.id);
@@ -121,7 +111,7 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
     return { highlightedNodeIds: nodeIds, highlightedEdgeIds: edgeIds };
   }, [selectedIds, nodes, edges, adjacencyMap]);
 
-  // Apply highlight styles to nodes
+  // Apply highlight styles to nodes (styles use CSS variables, auto-adapt to theme)
   const styledNodes = useMemo(() => {
     const hasSelection = selectedIds.size > 0;
 
@@ -129,12 +119,11 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
       const isHighlighted = highlightedNodeIds.has(node.id);
       const isSelected = selectedIds.has(node.id);
 
-      // Apply theme-aware styles
       const styleKey = (node.data as { styleKey?: string })?.styleKey;
       const isGroup = node.type === "resizableGroup";
       const baseStyle = isGroup
-        ? getGroupStyle(styleKey || "controlPlane", isDark)
-        : getNodeStyle(styleKey || "default", isDark);
+        ? getGroupStyle(styleKey || "controlPlane")
+        : getNodeStyle(styleKey || "default");
 
       return {
         ...node,
@@ -144,27 +133,29 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
           height: node.style?.height,
         },
         className: cn(
-          node.className,
           hasSelection && !isHighlighted && "opacity-30 transition-opacity",
           isSelected && "ring-2 ring-primary ring-offset-2"
         ),
       };
     });
-  }, [nodes, selectedIds, highlightedNodeIds, isDark]);
+  }, [nodes, selectedIds, highlightedNodeIds]);
 
-  // Apply highlight styles to edges
+  // Apply highlight styles to edges and set handles based on direction
   const styledEdges = useMemo(() => {
     const hasSelection = selectedIds.size > 0;
+    // Use appropriate handles based on layout direction
+    const sourceHandle = direction === "LR" ? "right" : "bottom";
+    const targetHandle = direction === "LR" ? "left" : "top";
 
     return edges.map((edge) => {
       const isHighlighted = highlightedEdgeIds.has(edge.id);
-
-      // Apply theme-aware styles
       const styleKey = (edge.data as { styleKey?: string })?.styleKey;
-      const baseStyle = getEdgeStyle(styleKey || "standard", isDark);
+      const baseStyle = getEdgeStyle(styleKey || "standard");
 
       return {
         ...edge,
+        sourceHandle,
+        targetHandle,
         animated: hasSelection ? isHighlighted : edge.animated,
         style: {
           stroke: baseStyle.stroke,
@@ -174,7 +165,7 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
         },
       };
     });
-  }, [edges, selectedIds, highlightedEdgeIds, isDark]);
+  }, [edges, selectedIds, highlightedEdgeIds, direction]);
 
   // Handle selection change from React Flow (supports multi-select with Shift/Cmd)
   const handleSelectionChange: OnSelectionChangeFunc = useCallback(({ nodes: selectedNodes }) => {
@@ -186,7 +177,7 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
     setSelectedIds(new Set());
   }, []);
 
-  // Load diagram data (only when slug changes)
+  // Load diagram data
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -194,19 +185,13 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
 
     Promise.all([fetchDiagram(slug), fetchLayout(slug)])
       .then(([diagramData, layoutData]) => {
-        // Store raw data for theme changes
-        rawDataRef.current = { diagramData, layoutData };
-
         const { nodes: convertedNodes, edges: convertedEdges } = convertToReactFlow(
           diagramData,
-          layoutData,
-          { isDark }
+          layoutData
         );
 
-        // Store original data for re-layout
         originalDataRef.current = { nodes: convertedNodes, edges: convertedEdges };
 
-        // If no saved layout, apply auto-layout with default direction
         if (!layoutData) {
           const { nodes: layoutedNodes } = applyDagreLayout(convertedNodes, convertedEdges, {
             direction: "TB",
@@ -224,9 +209,8 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
         setError(err.message);
         setLoading(false);
       });
-  }, [slug, setNodes, setEdges, fitView, isDark]);
+  }, [slug, setNodes, setEdges, fitView]);
 
-  // Apply layout using original data
   const handleLayout = useCallback(
     (dir: LayoutDirection) => {
       if (!originalDataRef.current) return;
@@ -243,12 +227,10 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
     [setNodes, fitView]
   );
 
-  // Reset layout
   const handleReset = useCallback(() => {
     handleLayout(direction);
   }, [handleLayout, direction]);
 
-  // Save layout
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {

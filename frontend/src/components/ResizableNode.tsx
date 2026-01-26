@@ -16,8 +16,12 @@ function ResizableNode({ data, selected }: NodeProps<ResizableNodeType>) {
         lineClassName="!border-primary"
         handleClassName="!w-2 !h-2 !bg-primary !border-white"
       />
-      <Handle type="target" position={Position.Top} className="invisible" />
-      <Handle type="source" position={Position.Bottom} className="invisible" />
+      {/* Vertical layout handles */}
+      <Handle id="top" type="target" position={Position.Top} className="invisible" />
+      <Handle id="bottom" type="source" position={Position.Bottom} className="invisible" />
+      {/* Horizontal layout handles */}
+      <Handle id="left" type="target" position={Position.Left} className="invisible" />
+      <Handle id="right" type="source" position={Position.Right} className="invisible" />
       {label}
     </div>
   );
