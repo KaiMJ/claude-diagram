@@ -1,14 +1,44 @@
 #!/usr/bin/env bash
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# Initialize ports (finds available port and writes to .ports.json + frontend/.env.local)
+python3 scripts/ports.py init
+
+# Read the backend port
+BACKEND_PORT=$(python3 scripts/ports.py get backend)
+echo "Starting backend on port $BACKEND_PORT"
+
+# Cleanup function
+cleanup() {
+    echo "Shutting down..."
+    kill $BACKEND_PID 2>/dev/null || true
+    kill $FRONTEND_PID 2>/dev/null || true
+    exit 0
+}
+trap cleanup SIGINT SIGTERM
+
 # Start backend
 (
   cd backend
   source .venv/bin/activate
-  uvicorn main:app --reload --port 8000
+  uvicorn main:app --reload --port "$BACKEND_PORT"
 ) &
+BACKEND_PID=$!
 
-# Start frontend (use pnpm per repo convention; fallback to npm if unavailable)
+# Wait for backend to be ready
+echo "Waiting for backend..."
+for i in {1..30}; do
+    if curl -s "http://127.0.0.1:$BACKEND_PORT/health" > /dev/null 2>&1; then
+        echo "Backend ready!"
+        break
+    fi
+    sleep 0.5
+done
+
+# Start frontend
 (
   cd frontend
   if command -v pnpm &>/dev/null; then
@@ -16,6 +46,7 @@ set -e
   else
     npm run dev
   fi
-)
+) &
+FRONTEND_PID=$!
 
 wait
