@@ -133,7 +133,7 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
           height: node.style?.height,
         },
         className: cn(
-          hasSelection && !isHighlighted && "opacity-30 transition-opacity",
+          hasSelection && !isHighlighted && "opacity-50 transition-opacity",
           isSelected && "ring-2 ring-primary ring-offset-2"
         ),
       };
@@ -143,14 +143,39 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
   // Apply highlight styles to edges and set handles based on direction
   const styledEdges = useMemo(() => {
     const hasSelection = selectedIds.size > 0;
-    // Use appropriate handles based on layout direction
-    const sourceHandle = direction === "LR" ? "right" : "bottom";
-    const targetHandle = direction === "LR" ? "left" : "top";
+
+    // Detect bidirectional edges (A→B and B→A)
+    const edgePairs = new Set<string>();
+    for (const edge of edges) {
+      const reverseKey = `${edge.target}-${edge.source}`;
+      if (edges.some((e) => e.id === reverseKey || (e.source === edge.target && e.target === edge.source))) {
+        edgePairs.add(`${edge.source}-${edge.target}`);
+        edgePairs.add(reverseKey);
+      }
+    }
 
     return edges.map((edge) => {
       const isHighlighted = highlightedEdgeIds.has(edge.id);
       const styleKey = (edge.data as { styleKey?: string })?.styleKey;
       const baseStyle = getEdgeStyle(styleKey || "standard");
+
+      // Check if this is a "return" edge in a bidirectional pair
+      const forwardKey = `${edge.source}-${edge.target}`;
+      const isBidirectional = edgePairs.has(forwardKey);
+      const isReturnEdge = isBidirectional && edges.findIndex((e) => e.source === edge.target && e.target === edge.source) < edges.findIndex((e) => e.id === edge.id);
+
+      // Use appropriate handles based on layout direction
+      // For return edges in bidirectional pairs, use opposite handles to avoid overlap
+      let sourceHandle: string;
+      let targetHandle: string;
+
+      if (direction === "LR") {
+        sourceHandle = isReturnEdge ? "top" : "right";
+        targetHandle = isReturnEdge ? "bottom" : "left";
+      } else {
+        sourceHandle = isReturnEdge ? "left" : "bottom";
+        targetHandle = isReturnEdge ? "right" : "top";
+      }
 
       return {
         ...edge,
@@ -161,7 +186,7 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
           stroke: baseStyle.stroke,
           strokeWidth: hasSelection && isHighlighted ? 3 : baseStyle.strokeWidth,
           strokeDasharray: baseStyle.strokeDasharray,
-          opacity: hasSelection && !isHighlighted ? 0.2 : 1,
+          opacity: hasSelection && !isHighlighted ? 0.4 : 1,
         },
       };
     });
