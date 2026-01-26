@@ -1,0 +1,313 @@
+# =============================================================================
+# SYSTEM OVERVIEW
+# =============================================================================
+# Complete data pipeline: External APIs → Control Plane → Bronze → Silver → Gold → Query Engine
+# =============================================================================
+
+groups:
+  - id: Group_ControlPlane
+    label: Control Plane (Scheduler)
+    style: controlPlane
+
+  - id: Group_Bronze
+    label: Bronze Layer (Raw)
+    style: bronze
+
+  - id: Group_Silver
+    label: Silver Layer (Typed & Normalized)
+    style: silver
+
+  - id: Group_Gold
+    label: Gold Layer (Unified & Pre-Aggregated)
+    style: gold
+
+  - id: Group_QueryEngine
+    label: Query Engine - Pipeline
+    style: queryEngine
+
+nodes:
+  # External APIs
+  - id: A
+    label: "External APIs\n(Amazon, Meta, Google, TikTok)"
+    style: default
+
+  # Control Plane
+  - id: B
+    label: "APIFetchMetadata Table\n(Pending -> Done/Failed)"
+    style: default
+    parent: Group_ControlPlane
+
+  - id: C
+    label: "Should Refresh?"
+    style: default
+    parent: Group_ControlPlane
+
+  - id: D
+    label: "Create / Reset Task"
+    style: default
+    parent: Group_ControlPlane
+
+  - id: E
+    label: "Skip / Reuse"
+    style: default
+    parent: Group_ControlPlane
+
+  - id: F
+    label: "Resume / Retry"
+    style: default
+    parent: Group_ControlPlane
+
+  - id: G
+    label: "Worker Execution"
+    style: default
+    parent: Group_ControlPlane
+
+  - id: BM
+    label: "BatchManager\n(pending → promoting → done)"
+    style: default
+    parent: Group_ControlPlane
+
+  # Bronze Layer
+  - id: H
+    label: "bronze.api_responses\n(Immutable JSONB)"
+    style: bronze
+    parent: Group_Bronze
+
+  - id: HB
+    label: "bronze.batches\n(Lineage & Rollback)"
+    style: bronze
+    parent: Group_Bronze
+
+  # Validation
+  - id: I
+    label: "ValidationEngine\n(Rules & Checks)"
+    style: default
+
+  - id: K
+    label: "Flag Error (Bronze)"
+    style: default
+
+  # Silver Layer
+  - id: SP
+    label: "SilverPromoter\n+ Transformers"
+    style: default
+    parent: Group_Silver
+
+  - id: J
+    label: "Silver Tables\n(Cleaned, UTC, Upserts)"
+    style: silver
+    parent: Group_Silver
+
+  # Gold Layer
+  - id: L1
+    label: "gold_cross_channel_ads"
+    style: gold
+    parent: Group_Gold
+
+  - id: L2
+    label: "gold_amazon_ads_daily"
+    style: gold
+    parent: Group_Gold
+
+  - id: L3
+    label: "gold_orders_daily"
+    style: gold
+    parent: Group_Gold
+
+  # Query Engine
+  - id: M
+    label: "User / Dashboard\nDataRequest"
+    style: default
+
+  - id: QE_Resolution
+    label: "1. Source Resolution\n(Map Request -> Sources)"
+    style: default
+    parent: Group_QueryEngine
+
+  - id: QE_Fetch
+    label: "2. Async Fetch\n(Parallel SQL Execution)"
+    style: default
+    parent: Group_QueryEngine
+
+  - id: QE_Combine
+    label: "3. Combination\n(Join on Dimensions)"
+    style: default
+    parent: Group_QueryEngine
+
+  - id: QE_Compute
+    label: "4. Computation\n(Derived Metrics)"
+    style: default
+    parent: Group_QueryEngine
+
+  - id: QE_Enrich
+    label: "5. Enrichment\n(Add Metadata)"
+    style: default
+    parent: Group_QueryEngine
+
+  - id: QE_Result
+    label: "Result\n(Final Response)"
+    style: default
+    parent: Group_QueryEngine
+
+  # Refresh/Rollback
+  - id: T
+    label: "Refresh Trigger"
+    style: default
+
+  - id: U
+    label: "Re-run Silver → Gold"
+    style: default
+
+  - id: V
+    label: "RollbackManager\n(Recomputation)"
+    style: default
+
+  - id: W
+    label: "Re-promote from Bronze\n(SilverPromoter)"
+    style: default
+
+edges:
+  # Control Plane Flow
+  - source: A
+    target: B
+    label: API Requests
+
+  - source: B
+    target: HB
+    label: fetch_metadata_id FK
+    style: dashed
+
+  - source: B
+    target: C
+    label: Triggers
+
+  - source: C
+    target: D
+    label: Yes (Refresh)
+
+  - source: C
+    target: E
+    label: No (Fresh)
+
+  - source: C
+    target: F
+    label: In Progress/Failed
+
+  - source: D
+    target: G
+    label: Queue
+
+  # Medallion Flow
+  - source: G
+    target: BM
+    label: Create Batch
+
+  - source: BM
+    target: HB
+    label: Track
+
+  - source: HB
+    target: H
+    label: batch_id FK
+
+  - source: BM
+    target: H
+    label: Write Raw
+
+  - source: H
+    target: I
+    label: Validate
+
+  - source: I
+    target: SP
+    label: Valid
+
+  - source: I
+    target: K
+    label: Invalid
+
+  - source: SP
+    target: J
+    label: Promote/Upsert
+
+  - source: J
+    target: L1
+    label: Silver -> Gold
+
+  - source: J
+    target: L2
+
+  - source: J
+    target: L3
+
+  # Query Engine Pipeline
+  - source: M
+    target: QE_Resolution
+    label: Request
+
+  - source: QE_Resolution
+    target: QE_Fetch
+
+  - source: QE_Fetch
+    target: QE_Combine
+    label: DataFrames
+
+  - source: QE_Combine
+    target: QE_Compute
+
+  - source: QE_Compute
+    target: QE_Enrich
+
+  - source: QE_Enrich
+    target: QE_Result
+
+  # Data Fetching (Read Operations)
+  - source: QE_Fetch
+    target: L1
+    animated: true
+    style: read
+    label: Read
+
+  - source: QE_Fetch
+    target: L2
+    animated: true
+    style: read
+
+  - source: QE_Fetch
+    target: L3
+    animated: true
+    style: read
+
+  - source: QE_Fetch
+    target: J
+    animated: true
+    style: read
+    label: Fallback
+
+  - source: QE_Fetch
+    target: H
+    animated: true
+    style: read
+    label: Raw
+
+  # Refresh & Rollback
+  - source: T
+    target: U
+
+  - source: U
+    target: L1
+
+  - source: V
+    target: HB
+    label: Mark Rolled Back
+
+  - source: V
+    target: W
+
+  - source: W
+    target: H
+    label: Re-read Raw
+
+  - source: W
+    target: SP
+    label: Re-transform

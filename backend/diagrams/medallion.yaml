@@ -1,0 +1,182 @@
+# =============================================================================
+# MEDALLION ARCHITECTURE
+# =============================================================================
+# Bronze (Raw) → Silver (Cleaned) → Gold (Aggregated)
+# =============================================================================
+
+groups:
+  - id: Group_Bronze
+    label: Bronze Layer (Raw, Immutable)
+    style: bronze
+
+  - id: Group_Silver
+    label: Silver Layer (Typed, Normalized)
+    style: silver
+
+  - id: Group_Gold
+    label: Gold Layer (Aggregated, Business-Ready)
+    style: gold
+
+nodes:
+  # External Sources
+  - id: EXT_API
+    label: "External APIs\n(SP-API, Meta, Google)"
+    style: default
+
+  - id: EXT_FILES
+    label: "File Uploads\n(CSV, Excel)"
+    style: default
+
+  # Bronze Layer
+  - id: BZ_BATCHES
+    label: "batches\n(Lineage Tracking)"
+    style: bronze
+    parent: Group_Bronze
+
+  - id: BZ_RESPONSES
+    label: "api_responses\n(Raw JSONB)"
+    style: bronze
+    parent: Group_Bronze
+
+  - id: BZ_UPLOADS
+    label: "file_uploads\n(Raw CSV/Rows)"
+    style: bronze
+    parent: Group_Bronze
+
+  # Validation & Promotion
+  - id: VALIDATOR
+    label: "ValidationEngine\n(Schema + Rules)"
+    style: default
+
+  - id: PROMOTER
+    label: "SilverPromoter\n(Transform + Clean)"
+    style: default
+
+  # Silver Layer
+  - id: SV_ADS
+    label: "silver_ads\n(Cleaned Ad Data)"
+    style: silver
+    parent: Group_Silver
+
+  - id: SV_ORDERS
+    label: "silver_orders\n(Cleaned Orders)"
+    style: silver
+    parent: Group_Silver
+
+  - id: SV_PRODUCTS
+    label: "silver_products\n(Product Catalog)"
+    style: silver
+    parent: Group_Silver
+
+  - id: SV_METRICS
+    label: "silver_metrics\n(Daily Metrics)"
+    style: silver
+    parent: Group_Silver
+
+  # Gold Layer
+  - id: GD_ADS_DAILY
+    label: "gold_ads_daily\n(Ad Performance)"
+    style: gold
+    parent: Group_Gold
+
+  - id: GD_ORDERS_DAILY
+    label: "gold_orders_daily\n(Sales Summary)"
+    style: gold
+    parent: Group_Gold
+
+  - id: GD_CROSS_CHANNEL
+    label: "gold_cross_channel\n(Unified View)"
+    style: gold
+    parent: Group_Gold
+
+  # Consumers
+  - id: QUERY_ENGINE
+    label: "Query Engine\n(Data Access)"
+    style: default
+
+  - id: DASHBOARD
+    label: "Dashboards\n(Visualization)"
+    style: default
+
+edges:
+  # External → Bronze
+  - source: EXT_API
+    target: BZ_BATCHES
+    label: Create Batch
+
+  - source: EXT_API
+    target: BZ_RESPONSES
+    label: Store Raw
+
+  - source: EXT_FILES
+    target: BZ_UPLOADS
+    label: Ingest
+
+  - source: BZ_BATCHES
+    target: BZ_RESPONSES
+    label: batch_id FK
+    style: reference
+
+  # Bronze → Validation
+  - source: BZ_RESPONSES
+    target: VALIDATOR
+    label: Validate
+
+  - source: BZ_UPLOADS
+    target: VALIDATOR
+
+  # Validation → Promotion
+  - source: VALIDATOR
+    target: PROMOTER
+    label: Valid Data
+
+  # Promotion → Silver
+  - source: PROMOTER
+    target: SV_ADS
+    label: Transform
+
+  - source: PROMOTER
+    target: SV_ORDERS
+
+  - source: PROMOTER
+    target: SV_PRODUCTS
+
+  - source: PROMOTER
+    target: SV_METRICS
+
+  # Silver → Gold
+  - source: SV_ADS
+    target: GD_ADS_DAILY
+    label: Aggregate
+
+  - source: SV_ORDERS
+    target: GD_ORDERS_DAILY
+
+  - source: SV_ADS
+    target: GD_CROSS_CHANNEL
+
+  - source: SV_ORDERS
+    target: GD_CROSS_CHANNEL
+
+  - source: SV_METRICS
+    target: GD_CROSS_CHANNEL
+
+  # Gold → Consumers
+  - source: GD_ADS_DAILY
+    target: QUERY_ENGINE
+    animated: true
+    style: read
+
+  - source: GD_ORDERS_DAILY
+    target: QUERY_ENGINE
+    animated: true
+    style: read
+
+  - source: GD_CROSS_CHANNEL
+    target: QUERY_ENGINE
+    animated: true
+    style: read
+
+  - source: QUERY_ENGINE
+    target: DASHBOARD
+    label: Serve Data

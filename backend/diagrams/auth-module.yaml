@@ -1,0 +1,112 @@
+# =============================================================================
+# AUTH MODULE
+# =============================================================================
+# Authentication, OAuth, and account management
+# =============================================================================
+
+groups:
+  - id: Group_External
+    label: External
+    style: external
+
+  - id: Group_Auth
+    label: Auth Layer
+    style: controlPlane
+
+  - id: Group_Data
+    label: Data Layer
+    style: bronze
+
+nodes:
+  # External
+  - id: client
+    label: "Client\n(Browser/App)"
+    style: default
+    parent: Group_External
+
+  - id: oauth_provider
+    label: "OAuth Provider\n(Google, Amazon)"
+    style: default
+    parent: Group_External
+
+  # Auth Layer
+  - id: auth_handler
+    label: "AuthHandler\n(/api/auth)"
+    style: primary
+    parent: Group_Auth
+
+  - id: oauth_service
+    label: "OAuthService\n(Token Exchange)"
+    style: gold
+    parent: Group_Auth
+
+  - id: auth_service
+    label: "AuthService\n(Session Management)"
+    style: gold
+    parent: Group_Auth
+
+  - id: token_validator
+    label: "TokenValidator\n(JWT Verification)"
+    style: default
+    parent: Group_Auth
+
+  # Data Layer
+  - id: user_repo
+    label: "UserRepository"
+    style: silver
+    parent: Group_Data
+
+  - id: session_repo
+    label: "SessionRepository"
+    style: silver
+    parent: Group_Data
+
+  - id: db
+    label: "PostgreSQL"
+    style: bronze
+    parent: Group_Data
+
+edges:
+  # Client flow
+  - source: client
+    target: auth_handler
+    label: HTTP
+
+  - source: auth_handler
+    target: oauth_service
+    label: OAuth Flow
+
+  - source: oauth_service
+    target: oauth_provider
+    label: Token Exchange
+
+  - source: oauth_provider
+    target: oauth_service
+    label: Access Token
+    style: dashed
+
+  - source: auth_handler
+    target: auth_service
+    label: Session
+
+  - source: auth_service
+    target: token_validator
+
+  # Data access
+  - source: oauth_service
+    target: user_repo
+    style: write
+
+  - source: auth_service
+    target: session_repo
+    style: write
+
+  - source: user_repo
+    target: db
+    label: SQL
+    style: write
+
+  - source: session_repo
+    target: db
+    label: SQL
+    style: write

@@ -1,0 +1,51 @@
+# =============================================================================
+# Architecture Diagrams Manifest
+# =============================================================================
+# This manifest tracks all architecture diagrams, their scope, and relationships.
+# All diagrams are stored as YAML files in diagrams/{slug}.yaml
+# =============================================================================
+
+categories:
+  - id: overview
+    label: Overview
+    description: High-level system diagrams showing end-to-end flows
+    icon: "🏠"
+
+  - id: backend
+    label: Backend
+    description: Backend modules and services
+    icon: "⚙️"
+
+  - id: frontend
+    label: Frontend
+    description: Frontend modules and components
+    icon: "🖥️"
+
+# =============================================================================
+# DIAGRAMS
+# =============================================================================
+
+diagrams:
+  # ---------------------------------------------------------------------------
+  # Overview
+  # ---------------------------------------------------------------------------
+  - slug: system-overview
+    title: System Overview
+    category: overview
+    icon: "🏗️"
+    description: Complete data pipeline from external APIs to query layer
+
+  - slug: medallion
+    title: Medallion Architecture
+    category: overview
+    icon: "🥇"
+    description: Bronze → Silver → Gold data transformation pipeline
+
+  # ---------------------------------------------------------------------------
+  # Backend
+  # ---------------------------------------------------------------------------
+  - slug: auth-module
+    title: Auth Module
+    category: backend
+    icon: "🔐"
+    description: Authentication, OAuth, and account management
