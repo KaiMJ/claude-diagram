@@ -97,11 +97,17 @@ export async function saveLayout(slug: string, nodes: Node[], edges: Edge[]): Pr
   if (!res.ok) throw new Error(`Failed to save layout: ${slug}`);
 }
 
+interface ConvertOptions {
+  isDark?: boolean;
+}
+
 // Convert YAML data to React Flow nodes/edges
 export function convertToReactFlow(
   data: DiagramData,
-  savedLayout?: LayoutData | null
+  savedLayout?: LayoutData | null,
+  options: ConvertOptions = {}
 ): { nodes: Node[]; edges: Edge[] } {
+  const { isDark = false } = options;
   const nodes: Node[] = [];
   const edges: Edge[] = [];
 
@@ -110,13 +116,13 @@ export function convertToReactFlow(
   // Convert groups first (they need to exist before child nodes)
   for (const group of data.groups || []) {
     const saved = layoutMap.get(group.id);
-    const style = getGroupStyle(group.style || "controlPlane");
+    const style = getGroupStyle(group.style || "controlPlane", isDark);
 
     nodes.push({
       id: group.id,
       type: "resizableGroup",
       position: saved?.position || { x: 0, y: 0 },
-      data: { label: group.label },
+      data: { label: group.label, styleKey: group.style || "controlPlane" },
       style: {
         ...style,
         width: saved?.width || 300,
@@ -129,13 +135,13 @@ export function convertToReactFlow(
   // Convert nodes
   for (const node of data.nodes || []) {
     const saved = layoutMap.get(node.id);
-    const style = getNodeStyle(node.style || "default");
+    const style = getNodeStyle(node.style || "default", isDark);
 
     nodes.push({
       id: node.id,
       type: "resizable",
       position: saved?.position || { x: 0, y: 0 },
-      data: { label: node.label },
+      data: { label: node.label, styleKey: node.style || "default" },
       style: {
         ...style,
         width: saved?.width || 180,
@@ -147,7 +153,7 @@ export function convertToReactFlow(
 
   // Convert edges
   for (const edge of data.edges || []) {
-    const styleDef = getEdgeStyle(edge.style || "standard");
+    const styleDef = getEdgeStyle(edge.style || "standard", isDark);
 
     edges.push({
       id: `${edge.source}-${edge.target}`,
@@ -155,6 +161,7 @@ export function convertToReactFlow(
       target: edge.target,
       label: edge.label,
       animated: edge.animated || styleDef.animated || false,
+      data: { styleKey: edge.style || "standard" },
       style: {
         stroke: styleDef.stroke,
         strokeWidth: styleDef.strokeWidth,

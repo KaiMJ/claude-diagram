@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  --background: 0 0% 100%;
+  --background: 0 0% 98%;
   --foreground: 222.2 84% 4.9%;
   --card: 0 0% 100%;
   --card-foreground: 222.2 84% 4.9%;
@@ -17,6 +17,36 @@
   --accent-foreground: 222.2 84% 4.9%;
   --border: 214.3 31.8% 91.4%;
   --radius: 0.5rem;
+
+  /* Node colors for light mode */
+  --node-default-bg: 0 0% 100%;
+  --node-default-border: 214.3 31.8% 85%;
+  --node-default-text: 222.2 84% 4.9%;
+  --canvas-bg: 210 20% 98%;
+  --canvas-dots: 214.3 31.8% 85%;
+}
+
+.dark {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  --card: 222.2 84% 8%;
+  --card-foreground: 210 40% 98%;
+  --primary: 217.2 91.2% 59.8%;
+  --primary-foreground: 222.2 84% 4.9%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 25%;
+
+  /* Node colors for dark mode */
+  --node-default-bg: 222.2 84% 8%;
+  --node-default-border: 217.2 32.6% 30%;
+  --node-default-text: 210 40% 98%;
+  --canvas-bg: 222.2 84% 6%;
+  --canvas-dots: 217.2 32.6% 20%;
 }
 
 body {
@@ -28,6 +58,16 @@ body {
 /* React Flow overrides */
 .react-flow__node {
   font-size: 12px;
+  transition: opacity 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Canvas background */
+.react-flow__background {
+  background-color: hsl(var(--canvas-bg)) !important;
+}
+
+.react-flow__background pattern circle {
+  fill: hsl(var(--canvas-dots)) !important;
 }
 
 /* Make connection handles invisible but functional for edge routing */
@@ -41,6 +81,7 @@ body {
 
 .react-flow__edge-path {
   stroke-linecap: round;
+  transition: opacity 0.2s ease, stroke-width 0.2s ease;
 }
 
 /* Resize control styling */
@@ -58,5 +99,36 @@ body {
   height: 8px !important;
   border-radius: 50% !important;
   background: hsl(var(--primary)) !important;
-  border: 2px solid white !important;
+  border: 2px solid hsl(var(--background)) !important;
+}
+
+/* Selected node glow effect */
+.react-flow__node.ring-2 {
+  box-shadow: 0 0 0 2px hsl(var(--primary)), 0 0 12px 2px hsl(var(--primary) / 0.3);
+  border-radius: 8px;
+}
+
+/* Controls styling for dark mode */
+.react-flow__controls {
+  background: hsl(var(--card)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 4px hsl(var(--foreground) / 0.1) !important;
+}
+
+.react-flow__controls-button {
+  background: hsl(var(--card)) !important;
+  border-bottom: 1px solid hsl(var(--border)) !important;
+  fill: hsl(var(--foreground)) !important;
+}
+
+.react-flow__controls-button:hover {
+  background: hsl(var(--secondary)) !important;
+}
+
+/* Mini map for dark mode */
+.react-flow__minimap {
+  background: hsl(var(--card)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 8px !important;
 }

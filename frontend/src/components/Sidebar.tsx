@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { fetchDiagramList } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface Category {
   id: string;
@@ -44,7 +45,7 @@ export default function Sidebar({ selectedSlug, onSelectDiagram }: SidebarProps)
 
   if (loading) {
     return (
-      <aside className="w-64 border-r bg-secondary/30 p-4">
+      <aside className="w-64 border-r border-border bg-card/50 p-4">
         <div className="text-sm text-muted-foreground">Loading...</div>
       </aside>
     );
@@ -52,16 +53,19 @@ export default function Sidebar({ selectedSlug, onSelectDiagram }: SidebarProps)
 
   if (error) {
     return (
-      <aside className="w-64 border-r bg-secondary/30 p-4">
+      <aside className="w-64 border-r border-border bg-card/50 p-4">
         <div className="text-sm text-red-500">Error: {error}</div>
       </aside>
     );
   }
 
   return (
-    <aside className="w-64 border-r bg-secondary/30 overflow-y-auto">
+    <aside className="w-64 border-r border-border bg-card/50 overflow-y-auto">
       <div className="p-4">
-        <h1 className="text-lg font-semibold mb-4">Diagrams</h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-lg font-semibold">Diagrams</h1>
+          <ThemeToggle />
+        </div>
         {categories.map((category) => {
           const categoryDiagrams = diagrams.filter((d) => d.category === category.id);
           if (categoryDiagrams.length === 0) return null;

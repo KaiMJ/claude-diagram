@@ -8,9 +8,9 @@ export default function Home() {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-background">
       <Sidebar selectedSlug={selectedSlug} onSelectDiagram={setSelectedSlug} />
-      <main className="flex-1">
+      <main className="flex-1 bg-background">
         {selectedSlug ? (
           <DiagramViewer slug={selectedSlug} />
         ) : (
