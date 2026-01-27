@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import type { NodeStatus, AnnotationType } from "./types";
 
 // Node style definitions - uses CSS variables from globals.css
 export type NodeStyleKey =
@@ -173,4 +174,72 @@ export function getGroupStyle(styleKey: string): CSSProperties {
 
 export function getEdgeStyle(styleKey: string): EdgeStyleDef {
   return edgeStyles[styleKey as EdgeStyleKey] || edgeStyles.standard;
+}
+
+// Status badge definitions
+export interface StatusStyleDef {
+  color: string;
+  icon: string;
+  label: string;
+}
+
+export const statusStyles: Record<NodeStatus, StatusStyleDef> = {
+  not_started: {
+    color: "var(--status-not-started)",
+    icon: "○",
+    label: "Not Started",
+  },
+  in_progress: {
+    color: "var(--status-in-progress)",
+    icon: "◐",
+    label: "In Progress",
+  },
+  implemented: {
+    color: "var(--status-implemented)",
+    icon: "◑",
+    label: "Implemented",
+  },
+  tested: {
+    color: "var(--status-tested)",
+    icon: "●",
+    label: "Tested",
+  },
+  blocked: {
+    color: "var(--status-blocked)",
+    icon: "✕",
+    label: "Blocked",
+  },
+};
+
+export function getStatusStyle(status: NodeStatus | undefined): StatusStyleDef {
+  return statusStyles[status || "not_started"];
+}
+
+// Annotation style definitions
+export interface AnnotationStyleDef {
+  color: string;
+  icon: string;
+  label: string;
+}
+
+export const annotationStyles: Record<AnnotationType, AnnotationStyleDef> = {
+  todo: {
+    color: "var(--annotation-todo)",
+    icon: "📋",
+    label: "TODO",
+  },
+  warning: {
+    color: "var(--annotation-warning)",
+    icon: "⚠️",
+    label: "Warning",
+  },
+  idea: {
+    color: "var(--annotation-idea)",
+    icon: "💡",
+    label: "Idea",
+  },
+};
+
+export function getAnnotationStyle(type: AnnotationType): AnnotationStyleDef {
+  return annotationStyles[type];
 }

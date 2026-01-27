@@ -1,60 +1,33 @@
 import type { Node, Edge } from "@xyflow/react";
 import { getNodeStyle, getGroupStyle, getEdgeStyle } from "./styles";
+import type {
+  DiagramCategory,
+  DiagramListMeta,
+  MasterDiagram,
+  YamlNode,
+  YamlGroup,
+  YamlEdge,
+  DiagramData,
+  LayoutData,
+  Annotation,
+} from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-// Types from YAML schema
-interface DiagramCategory {
-  id: string;
-  label: string;
-  icon: string;
-}
+// Re-export types for backwards compatibility
+export type { DiagramCategory, DiagramListMeta as DiagramMeta, MasterDiagram, DiagramData, LayoutData };
 
-interface DiagramMeta {
-  slug: string;
-  title: string;
-  category: string;
-  icon: string;
-  description: string;
-}
-
-interface MasterDiagram {
-  categories: DiagramCategory[];
-  diagrams: DiagramMeta[];
-}
-
-interface YamlNode {
-  id: string;
-  label: string;
-  style?: string;
-  parent?: string;
-}
-
-interface YamlGroup {
-  id: string;
-  label: string;
-  style?: string;
-  parent?: string | null;
-}
-
-interface YamlEdge {
-  source: string;
-  target: string;
-  label?: string;
-  style?: string;
-  animated?: boolean;
-}
-
-interface DiagramData {
-  slug: string;
-  groups?: YamlGroup[];
-  nodes?: YamlNode[];
-  edges?: YamlEdge[];
-}
-
-interface LayoutData {
-  nodes: { id: string; position: { x: number; y: number }; width?: number; height?: number }[];
-  edges: { id: string }[];
+// Helper to group annotations by target node
+function groupAnnotationsByNode(annotations: Annotation[]): Map<string, Annotation[]> {
+  const map = new Map<string, Annotation[]>();
+  for (const ann of annotations) {
+    if (ann.targetType === "node") {
+      const existing = map.get(ann.targetId) || [];
+      existing.push(ann);
+      map.set(ann.targetId, existing);
+    }
+  }
+  return map;
 }
 
 // API functions
@@ -106,6 +79,7 @@ export function convertToReactFlow(
   const edges: Edge[] = [];
 
   const layoutMap = new Map(savedLayout?.nodes.map((n) => [n.id, n]) || []);
+  const annotationMap = groupAnnotationsByNode(data.annotations || []);
 
   // Convert groups first (they need to exist before child nodes)
   for (const group of data.groups || []) {
@@ -116,7 +90,13 @@ export function convertToReactFlow(
       id: group.id,
       type: "resizableGroup",
       position: saved?.position || { x: 0, y: 0 },
-      data: { label: group.label, styleKey: group.style || "controlPlane" },
+      data: {
+        label: group.label,
+        styleKey: group.style || "controlPlane",
+        status: group.status,
+        metadata: group.metadata,
+        annotations: annotationMap.get(group.id) || [],
+      },
       style: {
         ...style,
         width: saved?.width || 300,
@@ -135,7 +115,13 @@ export function convertToReactFlow(
       id: node.id,
       type: "resizable",
       position: saved?.position || { x: 0, y: 0 },
-      data: { label: node.label, styleKey: node.style || "default" },
+      data: {
+        label: node.label,
+        styleKey: node.style || "default",
+        status: node.status,
+        metadata: node.metadata,
+        annotations: annotationMap.get(node.id) || [],
+      },
       style: {
         ...style,
         width: saved?.width || 180,

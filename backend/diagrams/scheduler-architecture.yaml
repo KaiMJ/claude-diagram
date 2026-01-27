@@ -6,6 +6,13 @@
 # =============================================================================
 
 # =============================================================================
+# META - Diagram metadata for progress tracking
+# =============================================================================
+meta:
+  title: "Scheduler Architecture"
+  description: "6-layer stack for Amazon report scheduling"
+
+# =============================================================================
 # GROUPS - Organized by architectural layers
 # =============================================================================
 groups:
@@ -119,54 +126,79 @@ nodes:
     label: "SchedulerAPI\n(scheduler/api.py)"
     style: primary
     parent: Group_Layer6
+    status: not_started
+    metadata:
+      file: "scheduler/api.py"
+      summary: "Main entry point for scheduling reports. Handles period parsing and gap detection."
+      todos:
+        - "Design API interface"
+        - "Integrate with pipeline executor"
 
   - id: period_parser
     label: "Period Parser\n(last_week → dates)"
     style: gold
     parent: Group_Layer6
+    status: not_started
 
   - id: interval_manager
     label: "Interval Manager\n(Gap Detection)"
     style: gold
     parent: Group_Layer6
+    status: not_started
 
   - id: scheduler_cli
     label: "CLI\n(scheduler/cli.py)"
     style: default
     parent: Group_Layer6
+    status: not_started
 
   # ---------------------------------------------------------------------------
   # Layer 5: Pipeline
   # ---------------------------------------------------------------------------
   - id: pipeline_executor
-    label: "ReportPipeline\n(pipeline/executor.py)"
+    label: "ReportPipeline\n(pipeline/runner.py)"
     style: primary
     parent: Group_Layer5
+    status: tested
+    metadata:
+      file: "scheduler/pipeline/runner.py"
+      summary: "Concurrent pipeline runner with semaphore-based concurrency control."
 
   - id: pipeline_config
     label: "PipelineConfig\n(Concurrency Settings)"
     style: default
     parent: Group_Layer5
+    status: tested
+    metadata:
+      file: "scheduler/pipeline/config.py"
+      summary: "Configuration for pipeline concurrency limits and timeouts."
 
   - id: progress_tracker
     label: "Progress Tracker\n(Status Monitoring)"
     style: default
     parent: Group_Layer5
+    status: tested
+    metadata:
+      file: "scheduler/pipeline/result.py"
+      summary: "Tracks pipeline execution results and aggregates statistics."
 
   - id: create_queue
     label: "Create Queue\n(Rate Limited)"
     style: warning
     parent: Group_Pipeline_Queues
+    status: tested
 
   - id: poll_queue
     label: "Poll Queue\n(Parallel)"
     style: gold
     parent: Group_Pipeline_Queues
+    status: tested
 
   - id: download_queue
     label: "Download Queue\n(Parallel)"
     style: success
     parent: Group_Pipeline_Queues
+    status: tested
 
   # ---------------------------------------------------------------------------
   # Layer 4: Report Operations
@@ -175,41 +207,61 @@ nodes:
     label: "SPReportRequest\n(Clean Interface)"
     style: primary
     parent: Group_RequestBuilder
+    status: tested
+    metadata:
+      file: "scheduler/operations/models.py"
+      summary: "Pydantic models for SP-API report requests with validation."
 
   - id: ad_report_request
     label: "AdReportRequest\n(Clean Interface)"
     style: primary
     parent: Group_RequestBuilder
+    status: not_started
 
   - id: asin_batcher
     label: "ASIN Batcher\n(18 per batch)"
     style: gold
     parent: Group_RequestBuilder
+    status: not_started
 
   - id: dependency_resolver
     label: "DependencyResolver\n(ASINs, Campaigns)"
     style: gold
     parent: Group_RequestBuilder
+    status: not_started
 
   - id: sp_report_ops
     label: "SPReportOps\n(SP Report Lifecycle)"
     style: primary
     parent: Group_Lifecycle
+    status: tested
+    metadata:
+      file: "scheduler/operations/sp_report.py"
+      summary: "Full report lifecycle: create, poll, download, parse, store. Uses SPApiClient."
 
   - id: ad_report_ops
     label: "AdReportOps\n(Ad Report Lifecycle)"
     style: primary
     parent: Group_Lifecycle
+    status: not_started
 
   - id: report_parsers
     label: "Report Parsers\n(JSON → Typed Models)"
     style: silver
     parent: Group_Lifecycle
+    status: tested
+    metadata:
+      file: "scheduler/operations/parsers.py"
+      summary: "Parses raw API responses into typed Pydantic models."
 
   - id: report_storage
     label: "ReportStorage\n(Bronze/Silver Control)"
     style: gold
     parent: Group_Lifecycle
+    status: tested
+    metadata:
+      file: "scheduler/operations/storage.py"
+      summary: "Handles bronze storage and silver promotion of report data."
 
   # ---------------------------------------------------------------------------
   # Layer 3: API Clients
@@ -218,21 +270,28 @@ nodes:
     label: "SPApiClient\n(Typed SP-API)"
     style: primary
     parent: Group_Layer3
+    status: tested
+    metadata:
+      file: "platforms/amazon/sp_api/client.py"
+      summary: "Typed client for SP-API reports. Handles create/poll/download lifecycle."
 
   - id: ads_api_client
     label: "AdsApiClient\n(Typed Ads API)"
     style: primary
     parent: Group_Layer3
+    status: not_started
 
   - id: listings_client
     label: "ListingsClient\n(ASIN Resolution)"
     style: silver
     parent: Group_Layer3
+    status: not_started
 
   - id: schema_registry
     label: "Schema Registry\n(api_registry.py)"
     style: default
     parent: Group_Layer3
+    status: not_started
 
   # ---------------------------------------------------------------------------
   # Layer 2: HTTP
@@ -241,16 +300,28 @@ nodes:
     label: "AmazonHTTP\n(HTTP Client)"
     style: primary
     parent: Group_Layer2
+    status: tested
+    metadata:
+      file: "platforms/amazon/http/client.py"
+      summary: "Async HTTP client with automatic token injection, rate limiting, and error handling."
 
   - id: rate_limiter
     label: "RateLimiter\n(Per-Profile-Per-Endpoint)"
     style: warning
     parent: Group_Layer2
+    status: tested
+    metadata:
+      file: "platforms/amazon/http/rate_limiter.py"
+      summary: "Token bucket rate limiter with per-profile-per-endpoint limits. Uses Redis for distributed state."
 
   - id: error_handler
     label: "Error Handler\n(Categorization + Retry)"
     style: error
     parent: Group_Layer2
+    status: tested
+    metadata:
+      file: "platforms/amazon/http/errors.py"
+      summary: "Categorizes API errors and determines retry strategy. Handles 429, 503, auth errors."
 
   # ---------------------------------------------------------------------------
   # Layer 1: Auth
@@ -259,16 +330,24 @@ nodes:
     label: "TokenManager\n(OAuth + Cache)"
     style: primary
     parent: Group_Layer1
+    status: tested
+    metadata:
+      file: "platforms/amazon/auth.py"
+      summary: "OAuth token management with 55-minute cache. Handles both SP-API and Ads API tokens."
+      todos:
+        - "Add Redis fallback for local development"
 
   - id: sp_token
     label: "SP Token\n(55 min cache)"
     style: gold
     parent: Group_Layer1
+    status: tested
 
   - id: ads_token
     label: "Ads Token\n(55 min cache)"
     style: gold
     parent: Group_Layer1
+    status: tested
 
   # ---------------------------------------------------------------------------
   # Data Storage
@@ -546,3 +625,31 @@ edges:
     target: silver_tables
     label: "upsert"
     style: write
+
+# =============================================================================
+# ANNOTATIONS - Development guidance
+# =============================================================================
+annotations:
+  - id: ann_next_step
+    type: todo
+    message: "Next: Implement Scheduler API to expose pipeline to users"
+    targetId: scheduler_api
+    targetType: node
+
+  - id: ann_ads_api
+    type: todo
+    message: "Implement Ads API client following SP-API pattern"
+    targetId: ads_api_client
+    targetType: node
+
+  - id: ann_rate_limit
+    type: warning
+    message: "Monitor rate limit usage under load - may need tuning"
+    targetId: rate_limiter
+    targetType: node
+
+  - id: ann_pipeline_idea
+    type: idea
+    message: "Consider adding dead letter queue for failed reports"
+    targetId: pipeline_executor
+    targetType: node

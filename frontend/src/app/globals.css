@@ -94,6 +94,18 @@
   --edge-write: #3b82f6;
   --edge-error: #ef4444;
   --edge-reference: #a855f7;
+
+  /* Status colors (implementation progress) */
+  --status-not-started: #9ca3af;
+  --status-in-progress: #3b82f6;
+  --status-implemented: #22c55e;
+  --status-tested: #a855f7;
+  --status-blocked: #ef4444;
+
+  /* Annotation colors */
+  --annotation-todo: #eab308;
+  --annotation-warning: #f97316;
+  --annotation-idea: #06b6d4;
 }
 
 .dark {
@@ -187,6 +199,18 @@
   --edge-write: #60a5fa;
   --edge-error: #f87171;
   --edge-reference: #c084fc;
+
+  /* Status colors (implementation progress) */
+  --status-not-started: #6b7280;
+  --status-in-progress: #60a5fa;
+  --status-implemented: #4ade80;
+  --status-tested: #c084fc;
+  --status-blocked: #f87171;
+
+  /* Annotation colors */
+  --annotation-todo: #facc15;
+  --annotation-warning: #fb923c;
+  --annotation-idea: #22d3ee;
 }
 
 body {

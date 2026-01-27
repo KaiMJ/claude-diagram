@@ -13,16 +13,21 @@ import {
   type Node,
   type Edge,
   type OnSelectionChangeFunc,
+  type NodeMouseHandler,
   ReactFlowProvider,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
 import ResizableNode from "./ResizableNode";
 import ResizableGroupNode from "./ResizableGroupNode";
+import DetailPanel from "./DetailPanel";
+import DiagramHeader from "./DiagramHeader";
 import { fetchDiagram, fetchLayout, saveLayout, convertToReactFlow } from "@/lib/api";
 import { applyDagreLayout, type LayoutDirection } from "@/lib/layout";
 import { getNodeStyle, getGroupStyle, getEdgeStyle } from "@/lib/styles";
 import { cn } from "@/lib/utils";
+import type { DiagramMeta, NodeStatus, NodeMetadata, ProgressStats } from "@/lib/types";
+import { calculateProgress } from "@/lib/progressUtils";
 
 const nodeTypes = {
   resizable: ResizableNode,
@@ -38,6 +43,13 @@ interface DiagramDataRef {
   edges: Edge[];
 }
 
+interface DetailNodeData {
+  id: string;
+  label: string;
+  status?: NodeStatus;
+  metadata?: NodeMetadata;
+}
+
 function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -46,6 +58,9 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
   const [saving, setSaving] = useState(false);
   const [direction, setDirection] = useState<LayoutDirection>("TB");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [detailNode, setDetailNode] = useState<DetailNodeData | null>(null);
+  const [progress, setProgress] = useState<ProgressStats | null>(null);
+  const [meta, setMeta] = useState<DiagramMeta | null>(null);
   const { fitView } = useReactFlow();
 
   // Store original converted nodes/edges for re-layout
@@ -197,9 +212,26 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
     setSelectedIds(new Set(selectedNodes.map((n) => n.id)));
   }, []);
 
-  // Handle pane click (clear selection)
+  // Handle pane click (clear selection and close detail panel)
   const handlePaneClick = useCallback(() => {
     setSelectedIds(new Set());
+    setDetailNode(null);
+  }, []);
+
+  // Handle node click (open detail panel)
+  const handleNodeClick: NodeMouseHandler = useCallback((_event, node) => {
+    const data = node.data as { label?: string; status?: NodeStatus; metadata?: NodeMetadata };
+    setDetailNode({
+      id: node.id,
+      label: data.label || node.id,
+      status: data.status,
+      metadata: data.metadata,
+    });
+  }, []);
+
+  // Close detail panel
+  const handleCloseDetail = useCallback(() => {
+    setDetailNode(null);
   }, []);
 
   // Load diagram data
@@ -207,6 +239,7 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
     setLoading(true);
     setError(null);
     setSelectedIds(new Set());
+    setDetailNode(null);
 
     Promise.all([fetchDiagram(slug), fetchLayout(slug)])
       .then(([diagramData, layoutData]) => {
@@ -226,6 +259,17 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
           setNodes(convertedNodes);
         }
         setEdges(convertedEdges);
+
+        // Store meta (annotations are now attached to nodes in convertToReactFlow)
+        setMeta(diagramData.meta || null);
+
+        // Calculate progress from original YAML data
+        const progressStats = calculateProgress(
+          diagramData.nodes || [],
+          diagramData.groups || []
+        );
+        setProgress(progressStats);
+
         setLoading(false);
 
         setTimeout(() => fitView({ padding: 0.1 }), 100);
@@ -283,76 +327,103 @@ function DiagramViewerInner({ slug }: DiagramViewerInnerProps) {
   }
 
   return (
-    <ReactFlow
-      nodes={styledNodes}
-      edges={styledEdges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      onSelectionChange={handleSelectionChange}
-      onPaneClick={handlePaneClick}
-      nodeTypes={nodeTypes}
-      nodeDragThreshold={1}
-      selectionOnDrag
-      selectionMode={SelectionMode.Partial}
-      fitView
-      minZoom={0.1}
-      maxZoom={2}
-      proOptions={{ hideAttribution: true }}
-    >
-      <Background gap={20} size={1} />
-      <Controls />
-      <Panel position="top-right" className="flex gap-2">
-        <button
-          onClick={() => handleLayout("TB")}
-          className={cn(
-            "px-3 py-1.5 text-sm rounded border transition-colors",
-            direction === "TB"
-              ? "bg-primary text-primary-foreground border-primary"
-              : "bg-card hover:bg-secondary border-border"
-          )}
-        >
-          Vertical
-        </button>
-        <button
-          onClick={() => handleLayout("LR")}
-          className={cn(
-            "px-3 py-1.5 text-sm rounded border transition-colors",
-            direction === "LR"
-              ? "bg-primary text-primary-foreground border-primary"
-              : "bg-card hover:bg-secondary border-border"
-          )}
-        >
-          Horizontal
-        </button>
-        <button
-          onClick={() => fitView({ padding: 0.1 })}
-          className="px-3 py-1.5 text-sm rounded border border-border bg-card hover:bg-secondary transition-colors"
-        >
-          Fit View
-        </button>
-        <button
-          onClick={handleReset}
-          className="px-3 py-1.5 text-sm rounded border border-border bg-card hover:bg-secondary transition-colors"
-        >
-          Reset
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-3 py-1.5 text-sm rounded border border-border bg-card hover:bg-secondary transition-colors disabled:opacity-50"
-        >
-          {saving ? "Saving..." : "Save Layout"}
-        </button>
-        {selectedIds.size > 0 && (
-          <button
-            onClick={() => setSelectedIds(new Set())}
-            className="px-3 py-1.5 text-sm rounded border border-primary bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-          >
-            Clear ({selectedIds.size})
-          </button>
+    <div className="relative w-full h-full">
+      <ReactFlow
+        nodes={styledNodes}
+        edges={styledEdges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onSelectionChange={handleSelectionChange}
+        onPaneClick={handlePaneClick}
+        onNodeClick={handleNodeClick}
+        nodeTypes={nodeTypes}
+        nodeDragThreshold={1}
+        selectionOnDrag
+        selectionMode={SelectionMode.Partial}
+        fitView
+        minZoom={0.1}
+        maxZoom={2}
+        proOptions={{ hideAttribution: true }}
+      >
+        <Background gap={20} size={1} />
+        <Controls />
+
+        {/* Progress Header - top-left */}
+        {progress && progress.total > 0 && (
+          <Panel position="top-left">
+            <DiagramHeader
+              title={meta?.title}
+              description={meta?.description}
+              progress={progress}
+            />
+          </Panel>
         )}
-      </Panel>
-    </ReactFlow>
+
+        {/* Layout Controls - top-right */}
+        <Panel position="top-right" className="flex gap-2">
+          <button
+            onClick={() => handleLayout("TB")}
+            className={cn(
+              "px-3 py-1.5 text-sm rounded border transition-colors",
+              direction === "TB"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-card hover:bg-secondary border-border"
+            )}
+          >
+            Vertical
+          </button>
+          <button
+            onClick={() => handleLayout("LR")}
+            className={cn(
+              "px-3 py-1.5 text-sm rounded border transition-colors",
+              direction === "LR"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-card hover:bg-secondary border-border"
+            )}
+          >
+            Horizontal
+          </button>
+          <button
+            onClick={() => fitView({ padding: 0.1 })}
+            className="px-3 py-1.5 text-sm rounded border border-border bg-card hover:bg-secondary transition-colors"
+          >
+            Fit View
+          </button>
+          <button
+            onClick={handleReset}
+            className="px-3 py-1.5 text-sm rounded border border-border bg-card hover:bg-secondary transition-colors"
+          >
+            Reset
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-3 py-1.5 text-sm rounded border border-border bg-card hover:bg-secondary transition-colors disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Save Layout"}
+          </button>
+          {selectedIds.size > 0 && (
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="px-3 py-1.5 text-sm rounded border border-primary bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+            >
+              Clear ({selectedIds.size})
+            </button>
+          )}
+        </Panel>
+      </ReactFlow>
+
+      {/* Detail Panel - slide in from right */}
+      {detailNode && (
+        <DetailPanel
+          nodeId={detailNode.id}
+          label={detailNode.label}
+          status={detailNode.status}
+          metadata={detailNode.metadata}
+          onClose={handleCloseDetail}
+        />
+      )}
+    </div>
   );
 }
 

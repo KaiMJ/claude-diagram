@@ -22,7 +22,7 @@ You are an expert software architect specializing in codebase visualization. You
 
 **LLM workflow is minimal - only YAML files:**
 
-1. **Create** `backend/diagrams/{slug}.yaml` with groups, nodes, and edges
+1. **Create** `backend/diagrams/{slug}.yaml` with groups, nodes, edges, and annotations
 2. **Update** `backend/diagrams/MASTER_DIAGRAM.yaml` manifest with metadata
 3. **Done** - No TypeScript editing needed! Frontend fetches everything from API.
 
@@ -30,6 +30,11 @@ You are an expert software architect specializing in codebase visualization. You
 
 ```yaml
 # backend/diagrams/{slug}.yaml
+
+# Optional: Diagram metadata for progress header
+meta:
+  title: "My Architecture"
+  description: "High-level overview of the system"
 
 groups:
   - id: Group_Example
@@ -42,6 +47,16 @@ nodes:
     label: "My Node\n(Description)"
     style: primary # gold | silver | bronze | default | primary | success | warning | error
     parent: Group_Example
+    status: tested # NEW: not_started | in_progress | implemented | tested | blocked
+    metadata: # NEW: Detail panel info
+      file: "src/my_module.py"
+      summary: "Handles authentication flow"
+      todos:
+        - "Add rate limiting"
+        - "Implement refresh tokens"
+      links:
+        - label: "Design Doc"
+          url: "#design-section"
 
 edges:
   - source: node_a
@@ -49,6 +64,14 @@ edges:
     label: relationship # optional
     style: dashed # optional: standard | dashed | longDashed | read | write | error | reference
     animated: true # optional
+
+# NEW: Annotations for development guidance
+annotations:
+  - id: ann_1
+    type: todo # todo | warning | idea
+    message: "Implement error handling before release"
+    targetId: my_node
+    targetType: node
 ```
 
 ### Step 2: Update Manifest
@@ -71,6 +94,49 @@ diagrams:
 ```
 
 **That's it!** The frontend automatically fetches the diagram list and data from the backend API.
+
+---
+
+## Living Project Tracker Features
+
+The diagram system supports **implementation progress tracking**:
+
+### Status Badges
+
+Each node can display a status badge in the top-right corner:
+
+| Status         | Icon | Color  | Meaning                |
+| -------------- | ---- | ------ | ---------------------- |
+| `not_started`  | ○    | Gray   | Not yet touched        |
+| `in_progress`  | ◐    | Blue   | Currently working      |
+| `implemented`  | ◑    | Green  | Code written           |
+| `tested`       | ●    | Purple | Tests passing          |
+| `blocked`      | ✕    | Red    | Has issues/blockers    |
+
+### Node Metadata (Detail Panel)
+
+Click any node to open a slide-in detail panel showing:
+
+- **File path** - Direct link to source code
+- **Summary** - Brief description of the component
+- **TODOs** - Actionable items for this component
+- **Links** - Related docs, design specs, PRs
+
+### Annotations
+
+Add visual markers to nodes for dev guidance:
+
+| Type      | Icon | Color  | Use For                          |
+| --------- | ---- | ------ | -------------------------------- |
+| `todo`    | !    | Yellow | Next steps, action items         |
+| `warning` | ⚠    | Orange | Performance concerns, tech debt  |
+| `idea`    | 💡   | Cyan   | Suggestions, future improvements |
+
+### Progress Header
+
+The diagram shows a progress header (top-left) with:
+- Overall completion percentage
+- Breakdown by status (tested, implemented, in progress, blocked)
 
 ---
 
@@ -114,10 +180,14 @@ diagrams:
 
 ---
 
-## Example YAML Diagram
+## Example: Project Tracker Diagram
 
 ```yaml
 # backend/diagrams/auth-flow.yaml
+
+meta:
+  title: "Auth Module"
+  description: "Authentication and authorization flow"
 
 groups:
   - id: Group_External
@@ -127,10 +197,6 @@ groups:
   - id: Group_Auth
     label: Auth Layer
     style: controlPlane
-
-  - id: Group_Data
-    label: Data Layer
-    style: bronze
 
 nodes:
   # External
@@ -144,22 +210,31 @@ nodes:
     label: "AuthHandler\n(/api/auth)"
     style: primary
     parent: Group_Auth
+    status: tested
+    metadata:
+      file: "src/handlers/auth.py"
+      summary: "HTTP endpoint for authentication requests"
 
   - id: auth_service
     label: "AuthService\n(Business Logic)"
     style: gold
     parent: Group_Auth
+    status: implemented
+    metadata:
+      file: "src/services/auth.py"
+      summary: "Core auth logic: login, logout, token validation"
+      todos:
+        - "Add MFA support"
+        - "Implement password reset"
 
-  # Data Layer
-  - id: user_repo
-    label: "UserRepository"
+  - id: token_manager
+    label: "TokenManager"
     style: silver
-    parent: Group_Data
-
-  - id: db
-    label: "PostgreSQL"
-    style: bronze
-    parent: Group_Data
+    parent: Group_Auth
+    status: in_progress
+    metadata:
+      file: "src/services/token.py"
+      summary: "JWT token creation and validation"
 
 edges:
   - source: client
@@ -170,13 +245,21 @@ edges:
     target: auth_service
 
   - source: auth_service
-    target: user_repo
+    target: token_manager
     style: dashed
 
-  - source: user_repo
-    target: db
-    label: SQL
-    style: write
+annotations:
+  - id: ann_mfa
+    type: todo
+    message: "MFA implementation is next priority"
+    targetId: auth_service
+    targetType: node
+
+  - id: ann_perf
+    type: warning
+    message: "Token refresh latency needs optimization"
+    targetId: token_manager
+    targetType: node
 ```
 
 ---
@@ -188,6 +271,9 @@ edges:
 3. **Map nodes** - services, handlers, models, utilities
 4. **Draw edges** - imports, data flow, dependencies
 5. **Choose styles** based on component type/layer
+6. **Add status** - track implementation progress
+7. **Add metadata** - file paths, summaries, todos
+8. **Add annotations** - highlight next steps, concerns
 
 ---
 
@@ -198,6 +284,10 @@ When creating a new diagram:
 - [ ] Read `backend/diagrams/MASTER_DIAGRAM.yaml` manifest first
 - [ ] Check if files are already covered by existing diagram
 - [ ] Create `backend/diagrams/{slug}.yaml`
+- [ ] Add `meta` block with title and description
+- [ ] Add `status` to nodes reflecting implementation state
+- [ ] Add `metadata` (file, summary, todos) for key components
+- [ ] Add `annotations` for dev guidance (todos, warnings, ideas)
 - [ ] Update `backend/diagrams/MASTER_DIAGRAM.yaml` with new entry
 - [ ] Summarize what was created and key insights
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { fetchDiagramList } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
+import { getProgressColor } from "@/lib/progressUtils";
 
 interface Category {
   id: string;
@@ -17,6 +18,7 @@ interface DiagramMeta {
   category: string;
   icon: string;
   description: string;
+  progress?: number;  // Optional progress percentage from API
 }
 
 interface SidebarProps {
@@ -87,8 +89,32 @@ export default function Sidebar({ selectedSlug, onSelectDiagram }: SidebarProps)
                           : "hover:bg-secondary"
                       )}
                     >
-                      <span className="mr-2">{diagram.icon}</span>
-                      {diagram.title}
+                      <div className="flex items-center gap-2">
+                        <span>{diagram.icon}</span>
+                        <span className="flex-1">{diagram.title}</span>
+                        {diagram.progress !== undefined && (
+                          <span
+                            className="text-xs px-1.5 py-0.5 rounded"
+                            style={{
+                              backgroundColor: `${getProgressColor(diagram.progress)}20`,
+                              color: getProgressColor(diagram.progress),
+                            }}
+                          >
+                            {diagram.progress}%
+                          </span>
+                        )}
+                      </div>
+                      {diagram.progress !== undefined && (
+                        <div className="mt-1 h-1 bg-secondary/50 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${diagram.progress}%`,
+                              backgroundColor: getProgressColor(diagram.progress),
+                            }}
+                          />
+                        </div>
+                      )}
                     </button>
                   </li>
                 ))}
