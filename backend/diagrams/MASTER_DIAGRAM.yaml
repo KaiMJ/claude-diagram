@@ -44,6 +44,25 @@ diagrams:
   # ---------------------------------------------------------------------------
   # Backend
   # ---------------------------------------------------------------------------
+  - slug: scheduler-architecture
+    title: Scheduler Architecture
+    category: backend
+    icon: "📅"
+    description: 6-layer stack for Amazon report scheduling with pipeline model
+    focus: Report scheduling, pipeline execution, rate limiting, token management
+    entry_points:
+      - backend/src/scheduler/
+      - backend/src/platforms/amazon/
+    core_files:
+      - backend/src/scheduler/api.py
+      - backend/src/scheduler/operations/*.py
+      - backend/src/scheduler/pipeline/*.py
+      - backend/src/platforms/amazon/http/*.py
+      - backend/src/platforms/amazon/auth/*.py
+    connections:
+      - medallion
+      - auth-module
+
   - slug: auth-module
     title: Auth Module
     category: backend

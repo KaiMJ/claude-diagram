@@ -1,0 +1,548 @@
+# =============================================================================
+# Scheduler Architecture Diagram
+# =============================================================================
+# 6-layer stack for Amazon SP-API and Ads API report scheduling
+# Pipeline model with concurrent report processing
+# =============================================================================
+
+# =============================================================================
+# GROUPS - Organized by architectural layers
+# =============================================================================
+groups:
+  # ---------------------------------------------------------------------------
+  # External Systems
+  # ---------------------------------------------------------------------------
+  - id: Group_External
+    label: External Systems
+    style: external
+
+  # ---------------------------------------------------------------------------
+  # Layer 6: Scheduler API (Human Interface)
+  # ---------------------------------------------------------------------------
+  - id: Group_Layer6
+    label: "Layer 6: Scheduler API"
+    style: controlPlane
+
+  # ---------------------------------------------------------------------------
+  # Layer 5: Report Pipeline (Concurrent Execution)
+  # ---------------------------------------------------------------------------
+  - id: Group_Layer5
+    label: "Layer 5: Report Pipeline"
+    style: controlPlane
+
+  - id: Group_Pipeline_Queues
+    label: Pipeline Queues
+    style: controlPlane
+    parent: Group_Layer5
+
+  # ---------------------------------------------------------------------------
+  # Layer 4: Report Operations
+  # ---------------------------------------------------------------------------
+  - id: Group_Layer4
+    label: "Layer 4: Report Operations"
+    style: silver
+
+  - id: Group_RequestBuilder
+    label: Request Building
+    style: silver
+    parent: Group_Layer4
+
+  - id: Group_Lifecycle
+    label: Report Lifecycle
+    style: silver
+    parent: Group_Layer4
+
+  # ---------------------------------------------------------------------------
+  # Layer 3: Amazon API Clients
+  # ---------------------------------------------------------------------------
+  - id: Group_Layer3
+    label: "Layer 3: Amazon API Clients"
+    style: bronze
+
+  # ---------------------------------------------------------------------------
+  # Layer 2: HTTP + Rate Limiting
+  # ---------------------------------------------------------------------------
+  - id: Group_Layer2
+    label: "Layer 2: HTTP Client + Rate Limiter"
+    style: bronze
+
+  # ---------------------------------------------------------------------------
+  # Layer 1: Auth + Token Management
+  # ---------------------------------------------------------------------------
+  - id: Group_Layer1
+    label: "Layer 1: Auth + Token Management"
+    style: bronze
+
+  # ---------------------------------------------------------------------------
+  # Data Storage (Medallion)
+  # ---------------------------------------------------------------------------
+  - id: Group_Storage
+    label: Data Storage (Medallion)
+    style: gold
+
+  - id: Group_Bronze
+    label: Bronze Layer
+    style: bronze
+    parent: Group_Storage
+
+  - id: Group_Silver
+    label: Silver Layer
+    style: silver
+    parent: Group_Storage
+
+# =============================================================================
+# NODES
+# =============================================================================
+nodes:
+  # ---------------------------------------------------------------------------
+  # External Systems
+  # ---------------------------------------------------------------------------
+  - id: amazon_sp_api
+    label: "Amazon SP-API\n(Reports, Listings)"
+    style: default
+    parent: Group_External
+
+  - id: amazon_ads_api
+    label: "Amazon Ads API\n(Ad Reports)"
+    style: default
+    parent: Group_External
+
+  - id: redis_cache
+    label: "Redis\n(Token Cache, Rate Limits)"
+    style: default
+    parent: Group_External
+
+  # ---------------------------------------------------------------------------
+  # Layer 6: Scheduler API
+  # ---------------------------------------------------------------------------
+  - id: scheduler_api
+    label: "SchedulerAPI\n(scheduler/api.py)"
+    style: primary
+    parent: Group_Layer6
+
+  - id: period_parser
+    label: "Period Parser\n(last_week → dates)"
+    style: gold
+    parent: Group_Layer6
+
+  - id: interval_manager
+    label: "Interval Manager\n(Gap Detection)"
+    style: gold
+    parent: Group_Layer6
+
+  - id: scheduler_cli
+    label: "CLI\n(scheduler/cli.py)"
+    style: default
+    parent: Group_Layer6
+
+  # ---------------------------------------------------------------------------
+  # Layer 5: Pipeline
+  # ---------------------------------------------------------------------------
+  - id: pipeline_executor
+    label: "ReportPipeline\n(pipeline/executor.py)"
+    style: primary
+    parent: Group_Layer5
+
+  - id: pipeline_config
+    label: "PipelineConfig\n(Concurrency Settings)"
+    style: default
+    parent: Group_Layer5
+
+  - id: progress_tracker
+    label: "Progress Tracker\n(Status Monitoring)"
+    style: default
+    parent: Group_Layer5
+
+  - id: create_queue
+    label: "Create Queue\n(Rate Limited)"
+    style: warning
+    parent: Group_Pipeline_Queues
+
+  - id: poll_queue
+    label: "Poll Queue\n(Parallel)"
+    style: gold
+    parent: Group_Pipeline_Queues
+
+  - id: download_queue
+    label: "Download Queue\n(Parallel)"
+    style: success
+    parent: Group_Pipeline_Queues
+
+  # ---------------------------------------------------------------------------
+  # Layer 4: Report Operations
+  # ---------------------------------------------------------------------------
+  - id: sp_report_request
+    label: "SPReportRequest\n(Clean Interface)"
+    style: primary
+    parent: Group_RequestBuilder
+
+  - id: ad_report_request
+    label: "AdReportRequest\n(Clean Interface)"
+    style: primary
+    parent: Group_RequestBuilder
+
+  - id: asin_batcher
+    label: "ASIN Batcher\n(18 per batch)"
+    style: gold
+    parent: Group_RequestBuilder
+
+  - id: dependency_resolver
+    label: "DependencyResolver\n(ASINs, Campaigns)"
+    style: gold
+    parent: Group_RequestBuilder
+
+  - id: sp_report_ops
+    label: "SPReportOps\n(SP Report Lifecycle)"
+    style: primary
+    parent: Group_Lifecycle
+
+  - id: ad_report_ops
+    label: "AdReportOps\n(Ad Report Lifecycle)"
+    style: primary
+    parent: Group_Lifecycle
+
+  - id: report_parsers
+    label: "Report Parsers\n(JSON → Typed Models)"
+    style: silver
+    parent: Group_Lifecycle
+
+  - id: report_storage
+    label: "ReportStorage\n(Bronze/Silver Control)"
+    style: gold
+    parent: Group_Lifecycle
+
+  # ---------------------------------------------------------------------------
+  # Layer 3: API Clients
+  # ---------------------------------------------------------------------------
+  - id: sp_api_client
+    label: "SPApiClient\n(Typed SP-API)"
+    style: primary
+    parent: Group_Layer3
+
+  - id: ads_api_client
+    label: "AdsApiClient\n(Typed Ads API)"
+    style: primary
+    parent: Group_Layer3
+
+  - id: listings_client
+    label: "ListingsClient\n(ASIN Resolution)"
+    style: silver
+    parent: Group_Layer3
+
+  - id: schema_registry
+    label: "Schema Registry\n(api_registry.py)"
+    style: default
+    parent: Group_Layer3
+
+  # ---------------------------------------------------------------------------
+  # Layer 2: HTTP
+  # ---------------------------------------------------------------------------
+  - id: amazon_http
+    label: "AmazonHTTP\n(HTTP Client)"
+    style: primary
+    parent: Group_Layer2
+
+  - id: rate_limiter
+    label: "RateLimiter\n(Per-Profile-Per-Endpoint)"
+    style: warning
+    parent: Group_Layer2
+
+  - id: error_handler
+    label: "Error Handler\n(Categorization + Retry)"
+    style: error
+    parent: Group_Layer2
+
+  # ---------------------------------------------------------------------------
+  # Layer 1: Auth
+  # ---------------------------------------------------------------------------
+  - id: token_manager
+    label: "TokenManager\n(OAuth + Cache)"
+    style: primary
+    parent: Group_Layer1
+
+  - id: sp_token
+    label: "SP Token\n(55 min cache)"
+    style: gold
+    parent: Group_Layer1
+
+  - id: ads_token
+    label: "Ads Token\n(55 min cache)"
+    style: gold
+    parent: Group_Layer1
+
+  # ---------------------------------------------------------------------------
+  # Data Storage
+  # ---------------------------------------------------------------------------
+  - id: bronze_writer
+    label: "BronzeWriter\n(Raw Data)"
+    style: bronze
+    parent: Group_Bronze
+
+  - id: bronze_batch
+    label: "BronzeBatch\n(Tracking)"
+    style: bronze
+    parent: Group_Bronze
+
+  - id: bronze_responses
+    label: "bronze_responses\n(JSONB Storage)"
+    style: bronze
+    parent: Group_Bronze
+
+  - id: silver_promoter
+    label: "SilverPromoter\n(Transform + Dedup)"
+    style: silver
+    parent: Group_Silver
+
+  - id: transformers
+    label: "Transformers\n(Report-Specific)"
+    style: silver
+    parent: Group_Silver
+
+  - id: silver_tables
+    label: "Silver Tables\n(sp_sales_traffic, etc.)"
+    style: gold
+    parent: Group_Silver
+
+# =============================================================================
+# EDGES
+# =============================================================================
+edges:
+  # ---------------------------------------------------------------------------
+  # User → Layer 6
+  # ---------------------------------------------------------------------------
+  - source: scheduler_cli
+    target: scheduler_api
+    label: "commands"
+
+  - source: scheduler_api
+    target: period_parser
+    label: "resolve period"
+    style: dashed
+
+  - source: scheduler_api
+    target: interval_manager
+    label: "gap detection"
+    style: dashed
+
+  # ---------------------------------------------------------------------------
+  # Layer 6 → Layer 5
+  # ---------------------------------------------------------------------------
+  - source: scheduler_api
+    target: pipeline_executor
+    label: "run pipeline"
+
+  - source: pipeline_config
+    target: pipeline_executor
+    style: dashed
+
+  - source: pipeline_executor
+    target: progress_tracker
+    style: dashed
+
+  # ---------------------------------------------------------------------------
+  # Pipeline Flow (Layer 5)
+  # ---------------------------------------------------------------------------
+  - source: pipeline_executor
+    target: create_queue
+    label: "submit"
+
+  - source: create_queue
+    target: poll_queue
+    label: "report created"
+    animated: true
+
+  - source: poll_queue
+    target: download_queue
+    label: "report ready"
+    animated: true
+
+  # ---------------------------------------------------------------------------
+  # Layer 5 → Layer 4
+  # ---------------------------------------------------------------------------
+  - source: create_queue
+    target: sp_report_ops
+    label: "create"
+
+  - source: poll_queue
+    target: sp_report_ops
+    label: "poll"
+
+  - source: download_queue
+    target: sp_report_ops
+    label: "download"
+
+  # ---------------------------------------------------------------------------
+  # Layer 4: Request Building
+  # ---------------------------------------------------------------------------
+  - source: sp_report_request
+    target: asin_batcher
+    label: "batch ASINs"
+    style: dashed
+
+  - source: sp_report_request
+    target: dependency_resolver
+    label: "resolve deps"
+    style: dashed
+
+  - source: ad_report_request
+    target: dependency_resolver
+    style: dashed
+
+  - source: dependency_resolver
+    target: listings_client
+    label: "fetch ASINs"
+
+  # ---------------------------------------------------------------------------
+  # Layer 4: Operations
+  # ---------------------------------------------------------------------------
+  - source: sp_report_ops
+    target: sp_api_client
+    label: "API calls"
+
+  - source: ad_report_ops
+    target: ads_api_client
+    label: "API calls"
+
+  - source: sp_report_ops
+    target: report_parsers
+    label: "parse"
+    style: dashed
+
+  - source: ad_report_ops
+    target: report_parsers
+    style: dashed
+
+  - source: sp_report_ops
+    target: report_storage
+    label: "save"
+    style: write
+
+  - source: ad_report_ops
+    target: report_storage
+    style: write
+
+  # ---------------------------------------------------------------------------
+  # Layer 3 → Layer 2
+  # ---------------------------------------------------------------------------
+  - source: sp_api_client
+    target: amazon_http
+    label: "HTTP"
+
+  - source: ads_api_client
+    target: amazon_http
+
+  - source: listings_client
+    target: amazon_http
+
+  - source: sp_api_client
+    target: schema_registry
+    label: "typed schemas"
+    style: dashed
+
+  - source: ads_api_client
+    target: schema_registry
+    style: dashed
+
+  # ---------------------------------------------------------------------------
+  # Layer 2: HTTP + Rate Limiting
+  # ---------------------------------------------------------------------------
+  - source: amazon_http
+    target: rate_limiter
+    label: "acquire"
+
+  - source: amazon_http
+    target: error_handler
+    label: "categorize"
+    style: dashed
+
+  - source: rate_limiter
+    target: redis_cache
+    label: "token bucket"
+    style: write
+
+  # ---------------------------------------------------------------------------
+  # Layer 2 → Layer 1
+  # ---------------------------------------------------------------------------
+  - source: amazon_http
+    target: token_manager
+    label: "get token"
+
+  - source: error_handler
+    target: token_manager
+    label: "refresh on 403"
+    style: error
+
+  # ---------------------------------------------------------------------------
+  # Layer 1: Token Management
+  # ---------------------------------------------------------------------------
+  - source: token_manager
+    target: sp_token
+    style: dashed
+
+  - source: token_manager
+    target: ads_token
+    style: dashed
+
+  - source: sp_token
+    target: redis_cache
+    label: "cache"
+    style: write
+
+  - source: ads_token
+    target: redis_cache
+    style: write
+
+  # ---------------------------------------------------------------------------
+  # Layer 1 → External
+  # ---------------------------------------------------------------------------
+  - source: token_manager
+    target: amazon_sp_api
+    label: "OAuth"
+
+  - source: token_manager
+    target: amazon_ads_api
+    label: "OAuth"
+
+  # ---------------------------------------------------------------------------
+  # Layer 2 → External (API Calls)
+  # ---------------------------------------------------------------------------
+  - source: amazon_http
+    target: amazon_sp_api
+    label: "requests"
+    animated: true
+
+  - source: amazon_http
+    target: amazon_ads_api
+    animated: true
+
+  # ---------------------------------------------------------------------------
+  # Storage Flow
+  # ---------------------------------------------------------------------------
+  - source: report_storage
+    target: bronze_writer
+    label: "write raw"
+    style: write
+
+  - source: bronze_writer
+    target: bronze_batch
+    label: "track"
+    style: dashed
+
+  - source: bronze_writer
+    target: bronze_responses
+    label: "store"
+    style: write
+
+  - source: report_storage
+    target: silver_promoter
+    label: "promote"
+    style: write
+
+  - source: silver_promoter
+    target: transformers
+    label: "transform"
+
+  - source: transformers
+    target: silver_tables
+    label: "upsert"
+    style: write
