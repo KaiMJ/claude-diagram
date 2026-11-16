@@ -5,6 +5,23 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Initialize ports (finds available port and writes to .ports.json + frontend/.env.local)
+echo "Installing backend dependencies..."
+if ! command -v uv &>/dev/null; then
+    echo "uv not found. Install: curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
+    exit 1
+fi
+(cd backend && uv sync)
+
+echo "Installing frontend dependencies..."
+(
+  cd frontend
+  if command -v pnpm &>/dev/null; then
+    pnpm install
+  else
+    npm install
+  fi
+)
+
 python3 scripts/ports.py init
 
 # Read the backend port
