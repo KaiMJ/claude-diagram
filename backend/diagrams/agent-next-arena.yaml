@@ -1,0 +1,660 @@
+# =============================================================================
+# AGENT-NEXT — ARENA (RUNTIME) STRUCTURE
+# =============================================================================
+# Folder/file structure of backend/src/modules/agent-next/arena and who imports
+# whom. Edges are code imports (verified with a per-file import scan), not
+# runtime flows. Flows are a separate pass.
+# Verified 2026-11-02 against origin/staging (0b9986788f).
+# Paths in metadata.file are relative to backend/src/modules/agent-next/.
+#
+# Status: tested = folder has unit specs; implemented = no specs there.
+# =============================================================================
+
+meta:
+  title: "agent-next — Arena Runtime Structure"
+  description: "arena/: HTTP, turn queue, services, Mastra driver, domain models, persistence, HQ"
+
+groups:
+  - id: Group_HTTP
+    label: "HTTP surface (arena/*.controller, guards, dto)"
+    style: controlPlane
+
+  - id: Group_Queue
+    label: "arena/turn-queue (BullMQ)"
+    style: controlPlane
+
+  - id: Group_Services
+    label: "arena/services"
+    style: silver
+
+
+
+
+
+  - id: Group_Mastra
+    label: "arena/mastra (engine — the planned harness/ layer)"
+    style: gold
+
+  - id: Group_Domain
+    label: "Domain models (no Nest, no DB)"
+    style: queryEngine
+
+  - id: Group_Persistence
+    label: "arena/repositories + entities"
+    style: bronze
+
+  - id: Group_HQ
+    label: "arena/hq (internal admin)"
+    style: controlPlane
+
+  - id: Group_Outside
+    label: "Outside arena/"
+    style: external
+
+nodes:
+  # ---------------------------------------------------------------------------
+  # HTTP surface
+  # ---------------------------------------------------------------------------
+  - id: arena_module
+    label: "ArenaModule\n(arena.module.ts)"
+    style: primary
+    parent: Group_HTTP
+    status: implemented
+    metadata:
+      file: "arena/arena.module.ts"
+      summary: "Registers every provider in arena/ plus chat-import, two BullMQ queues (cofounder-turn, cofounder-test-data), HARNESS_DRIVERS = [MastraDriver] ('Eve joins here' comment, never built)."
+
+  - id: arena_controller
+    label: "ArenaController\n(/arena, JWT, 28 KB)"
+    style: primary
+    parent: Group_HTTP
+    status: tested
+    metadata:
+      file: "arena/arena.controller.ts"
+      summary: "Bindings, cofounder status, conversations, messages, stop, credentials, plan, feedback, schedules, events, export.ndjson, artifacts, SSE stream."
+
+  - id: avail_guard
+    label: "CofounderAvailableGuard\n+ dto/plan.dto"
+    style: default
+    parent: Group_HTTP
+    status: implemented
+    metadata:
+      file: "arena/guards/cofounder-available.guard.ts"
+      summary: "Refuses routes when the Cofounder is off for this store (asks ArenaService → CofounderRolloutService)."
+
+  # ---------------------------------------------------------------------------
+  # Turn queue
+  # ---------------------------------------------------------------------------
+  - id: turn_queue
+    label: "turn-queue.ts\n(queue name, job types)"
+    style: default
+    parent: Group_Queue
+    status: tested
+    metadata:
+      file: "arena/turn-queue/turn-queue.ts"
+      summary: "COFOUNDER_TURN_QUEUE, job shapes (turn, work: recover/review/schedule/stop). Also imported by modules/bull-board."
+
+  - id: turn_processor
+    label: "CofounderTurnProcessor\n(worker tier)"
+    style: primary
+    parent: Group_Queue
+    status: tested
+    metadata:
+      file: "arena/turn-queue/cofounder-turn.processor.ts"
+      summary: "BullMQ consumer; hands jobs to ConversationOwnerService."
+
+  # ---------------------------------------------------------------------------
+  # Services — turn orchestration
+  # ---------------------------------------------------------------------------
+  - id: arena_service
+    label: "ArenaService\n(arena.service.ts, 30 KB)"
+    style: gold
+    parent: Group_Services
+    status: tested
+    metadata:
+      file: "arena/services/arena.service.ts"
+      summary: "Entry for every turn: sendMessage, runTurn, bindings. Talks to the engine only through HarnessDriver (harness.interface.ts), never MastraDriver directly."
+
+  - id: owner_service
+    label: "ConversationOwnerService\n(Redis lease, 22 KB)"
+    style: silver
+    parent: Group_Services
+    status: tested
+    metadata:
+      file: "arena/services/conversation-owner.service.ts"
+      summary: "One owner instance per conversation; forwards jobs between instances (plan 006)."
+
+  - id: intake_service
+    label: "IntakeService\n(message ledger, 19 KB)"
+    style: silver
+    parent: Group_Services
+    status: tested
+    metadata:
+      file: "arena/services/intake.service.ts"
+      summary: "Accepts merchant messages, dedupes, coordinates messages that arrive mid-turn (plan 002)."
+
+  - id: plan_service
+    label: "PlanService\n(to-do plan)"
+    style: silver
+    parent: Group_Services
+    status: tested
+    metadata:
+      file: "arena/services/plan.service.ts"
+
+  - id: participants_service
+    label: "ConversationParticipants\n(role for unattended runs)"
+    style: silver
+    parent: Group_Services
+    status: tested
+    metadata:
+      file: "arena/services/conversation-participants.service.ts"
+
+  - id: credential_service
+    label: "CredentialSubmissionService\n(secure input)"
+    style: silver
+    parent: Group_Services
+    status: tested
+    metadata:
+      file: "arena/services/credential-submission.service.ts"
+
+  - id: reset_service
+    label: "CofounderResetService"
+    style: silver
+    parent: Group_Services
+    status: tested
+    metadata:
+      file: "arena/services/cofounder-reset.service.ts"
+
+  # ---------------------------------------------------------------------------
+  # Services — events
+  # ---------------------------------------------------------------------------
+  - id: event_log
+    label: "EventLogService\n(agent_next_events writer)"
+    style: silver
+    parent: Group_Services
+    status: tested
+    metadata:
+      file: "arena/services/event-log.service.ts"
+      summary: "Payloads > 32 KB go to agent_next_artifacts. Publishes to the event bus."
+
+  - id: event_bus
+    label: "RedisArenaEventBus\n(arena-event-bus.ts)"
+    style: silver
+    parent: Group_Services
+    status: tested
+    metadata:
+      file: "arena/services/arena-event-bus.ts"
+
+  - id: read_roles
+    label: "payload-read-roles.ts\n(cut payloads by role)"
+    style: silver
+    parent: Group_Services
+    status: tested
+    metadata:
+      file: "arena/services/payload-read-roles.ts"
+
+  # ---------------------------------------------------------------------------
+  # Services — billing + rollout
+  # ---------------------------------------------------------------------------
+  - id: usage_meter
+    label: "CofounderUsageMeter\n(→ ai_usage ledger)"
+    style: silver
+    parent: Group_Services
+    status: tested
+    metadata:
+      file: "arena/services/cofounder-usage-meter.ts"
+
+  - id: free_allowance
+    label: "FreeAiAllowanceService"
+    style: silver
+    parent: Group_Services
+    status: tested
+    metadata:
+      file: "arena/services/free-ai-allowance.service.ts"
+
+  - id: rollout
+    label: "CofounderRolloutService\n(who gets the Cofounder)"
+    style: silver
+    parent: Group_Services
+    status: tested
+    metadata:
+      file: "arena/services/cofounder-rollout.service.ts"
+
+  # ---------------------------------------------------------------------------
+  # Services — notices + ops
+  # ---------------------------------------------------------------------------
+  - id: notices
+    label: "PublishFailureNotices\nCreditsRestoredNotices"
+    style: silver
+    parent: Group_Services
+    status: tested
+    metadata:
+      file: "arena/services/publish-failure-notices.service.ts"
+      summary: "Turn platform events (failed publish, credits restored) into Cofounder messages. Both import MastraDriver directly."
+
+  - id: failure_cards
+    label: "CofounderFailureCards\n(#ai-escalations)"
+    style: silver
+    parent: Group_Services
+    status: tested
+    metadata:
+      file: "arena/services/cofounder-failure-cards.ts"
+
+  - id: strict_claim
+    label: "StrictClaimService\n(one-worker claim)"
+    style: default
+    parent: Group_Services
+    status: tested
+    metadata:
+      file: "arena/services/strict-claim.service.ts"
+
+  # ---------------------------------------------------------------------------
+  # Mastra engine
+  # ---------------------------------------------------------------------------
+  - id: harness_iface
+    label: "harness.interface.ts\n(HarnessDriver, HARNESS_DRIVERS)"
+    style: primary
+    parent: Group_Mastra
+    status: implemented
+    metadata:
+      file: "arena/harness.interface.ts"
+      summary: "TurnInput / TurnResult / ScheduleInput / HarnessDriver. The seam that would let another engine plug in."
+
+  - id: mastra_driver
+    label: "MastraDriver\n(mastra.driver.ts — 5.1k lines, 306 KB)"
+    style: gold
+    parent: Group_Mastra
+    status: tested
+    metadata:
+      file: "arena/mastra/mastra.driver.ts"
+      summary: "One class (~120 methods): builds agents cofounder / cofounder-worker / storefront in onModuleInit, turn(), schedules, background tasks, tool wrap, model selection, metrics. Imports 30+ local files."
+      todos:
+        - "Split by concern (agents, tool wrap, schedules, background tasks, recovery) before it grows further"
+
+  - id: prompts
+    label: "mastra.prompts.ts\n(all prompt text, 37 KB)"
+    style: silver
+    parent: Group_Mastra
+    status: tested
+    metadata:
+      file: "arena/mastra/mastra.prompts.ts"
+
+  - id: span_exporter
+    label: "MastraSpanExporter\n(spans → events, 29 KB)"
+    style: silver
+    parent: Group_Mastra
+    status: tested
+    metadata:
+      file: "arena/mastra/mastra-span.exporter.ts"
+      summary: "Mastra observability spans → EventLogService rows + usage meter."
+
+  - id: model_wire
+    label: "anthropic-request.probe\nanthropic-prompt-cache · reply-style"
+    style: silver
+    parent: Group_Mastra
+    status: tested
+    metadata:
+      file: "arena/mastra/anthropic-request.probe.ts"
+      summary: "Fetch-level hook: cache breakpoints, request size probe, reply length measure."
+
+  - id: driver_tools
+    label: "Driver tools\nplan-tools · confirm-change"
+    style: silver
+    parent: Group_Mastra
+    status: tested
+    metadata:
+      file: "arena/mastra/plan-tools.ts"
+      summary: "Tools the engine owns (task_*, confirm_change). Check-in, playbook and coordination tools are defined inside mastra.driver.ts."
+
+  - id: memory_ctx
+    label: "Context builders\nmember-memory · theme-notes\nplaybook-inject · attachment-parts"
+    style: silver
+    parent: Group_Mastra
+    status: tested
+    metadata:
+      file: "arena/mastra/member-memory.ts"
+
+  - id: intake_proc
+    label: "intake-processors.ts\n(Mastra input processors)"
+    style: silver
+    parent: Group_Mastra
+    status: tested
+    metadata:
+      file: "arena/mastra/intake-processors.ts"
+
+  - id: gates
+    label: "Gates\nhand-off · foreign-media\npreview-only · turn-stop"
+    style: silver
+    parent: Group_Mastra
+    status: tested
+    metadata:
+      file: "arena/mastra/hand-off-gate.ts"
+
+  - id: mastra_utils
+    label: "Utils\nworker-report · undelivered-results\nschedule-time · store-threads\nschema-drift · bounded"
+    style: default
+    parent: Group_Mastra
+    status: tested
+    metadata:
+      file: "arena/mastra/"
+
+  # ---------------------------------------------------------------------------
+  # Domain models
+  # ---------------------------------------------------------------------------
+  - id: intake_model
+    label: "intake/intake.model.ts\n(24 KB)"
+    style: default
+    parent: Group_Domain
+    status: tested
+    metadata:
+      file: "arena/intake/intake.model.ts"
+
+  - id: plan_model
+    label: "plan/plan.model.ts\n(17 KB)"
+    style: default
+    parent: Group_Domain
+    status: tested
+    metadata:
+      file: "arena/plan/plan.model.ts"
+
+  - id: playbook
+    label: "playbook/\nlibrary.ts · version.service · repository\n+ library/*.md (49 docs)"
+    style: default
+    parent: Group_Domain
+    status: tested
+    metadata:
+      file: "arena/playbook/"
+      summary: "Packaged Markdown library + DB versions/assignments (plan 008)."
+
+  - id: shared_kinds
+    label: "chat-event-kinds · turn-error\ncofounder-intro"
+    style: default
+    parent: Group_Domain
+    status: implemented
+    metadata:
+      file: "arena/chat-event-kinds.ts"
+
+  # ---------------------------------------------------------------------------
+  # Persistence
+  # ---------------------------------------------------------------------------
+  - id: arena_repo
+    label: "ArenaRepository\n(39 KB — bindings, convos, events)"
+    style: bronze
+    parent: Group_Persistence
+    status: tested
+    metadata:
+      file: "arena/repositories/arena.repository.ts"
+      summary: "Imported by 15+ files across arena/; the hub of persistence."
+
+  - id: other_repos
+    label: "ConfirmationRepository · PlanRepository\nIntakeRepository · CofounderResetRepository"
+    style: bronze
+    parent: Group_Persistence
+    status: tested
+    metadata:
+      file: "arena/repositories/"
+      summary: "Confirmation + plan state live in Mastra's mastra_thread_state."
+
+  - id: entities
+    label: "entities/\nArenaBinding · Conversation · Event · Artifact"
+    style: bronze
+    parent: Group_Persistence
+    status: implemented
+    metadata:
+      file: "arena/entities/"
+
+  - id: playbook_entities
+    label: "playbook/entities/\nVersion · Document · Assignment · Default"
+    style: bronze
+    parent: Group_Persistence
+    status: implemented
+    metadata:
+      file: "arena/playbook/entities/"
+
+  # ---------------------------------------------------------------------------
+  # HQ
+  # ---------------------------------------------------------------------------
+  - id: hq_controller
+    label: "HqCofounderController\n(/hq/cofounder)"
+    style: primary
+    parent: Group_HQ
+    status: tested
+    metadata:
+      file: "arena/hq/hq-cofounder.controller.ts"
+
+  - id: hq_services
+    label: "HqCofounderService · HqExperimentsService\nHqCofounderRepository · dto · audit"
+    style: silver
+    parent: Group_HQ
+    status: tested
+    metadata:
+      file: "arena/hq/"
+
+  - id: hq_test_data
+    label: "test-data/\nservice · processor · queue · repo · scenarios"
+    style: silver
+    parent: Group_HQ
+    status: tested
+    metadata:
+      file: "arena/hq/test-data/"
+      summary: "Seeds slot stores with Medusa test data on workers; never production (test-environments.ts)."
+
+  # ---------------------------------------------------------------------------
+  # Outside arena/
+  # ---------------------------------------------------------------------------
+  - id: capabilities
+    label: "capabilities/\n(tools, StoreSession, confirmation)"
+    style: gold
+    parent: Group_Outside
+    metadata:
+      links:
+        - label: "Capabilities diagram"
+          url: "#agent-next-capabilities"
+
+  - id: chat_import
+    label: "chat-import/"
+    style: default
+    parent: Group_Outside
+
+  - id: cofounder_media
+    label: "cofounder-media/\n(attachments storage client)"
+    style: default
+    parent: Group_Outside
+
+  - id: mastra_lib
+    label: "@mastra/* + @ai-sdk/anthropic"
+    style: bronze
+    parent: Group_Outside
+
+edges:
+  # HTTP → services
+  - source: arena_module
+    target: arena_controller
+  - source: arena_module
+    target: hq_controller
+  - source: arena_module
+    target: mastra_driver
+    label: "HARNESS_DRIVERS"
+  - source: arena_controller
+    target: arena_service
+  - source: arena_controller
+    target: plan_service
+  - source: arena_controller
+    target: event_log
+  - source: arena_controller
+    target: credential_service
+  - source: avail_guard
+    target: arena_service
+
+  # Queue
+  - source: arena_service
+    target: turn_queue
+    label: "enqueue"
+    style: write
+  - source: turn_processor
+    target: owner_service
+  - source: owner_service
+    target: arena_service
+    label: "runTurn"
+
+  # ArenaService
+  - source: arena_service
+    target: harness_iface
+    label: "HarnessDriver"
+  - source: arena_service
+    target: intake_service
+  - source: arena_service
+    target: free_allowance
+  - source: arena_service
+    target: rollout
+  - source: arena_service
+    target: failure_cards
+  - source: arena_service
+    target: event_log
+  - source: arena_service
+    target: arena_repo
+  - source: reset_service
+    target: arena_service
+  - source: reset_service
+    target: owner_service
+
+  # Event services
+  - source: event_log
+    target: event_bus
+  - source: event_log
+    target: read_roles
+  - source: event_log
+    target: arena_repo
+    style: write
+  - source: intake_service
+    target: intake_model
+  - source: intake_service
+    target: other_repos
+    style: write
+  - source: plan_service
+    target: plan_model
+  - source: plan_service
+    target: other_repos
+    style: write
+  - source: failure_cards
+    target: strict_claim
+
+  # Driver implements the interface
+  - source: mastra_driver
+    target: harness_iface
+    label: "implements"
+    style: dashed
+  - source: mastra_driver
+    target: prompts
+  - source: mastra_driver
+    target: span_exporter
+  - source: mastra_driver
+    target: model_wire
+  - source: mastra_driver
+    target: driver_tools
+  - source: mastra_driver
+    target: memory_ctx
+  - source: mastra_driver
+    target: intake_proc
+  - source: mastra_driver
+    target: gates
+  - source: mastra_driver
+    target: mastra_utils
+  - source: mastra_driver
+    target: owner_service
+  - source: mastra_driver
+    target: intake_service
+  - source: mastra_driver
+    target: plan_service
+  - source: mastra_driver
+    target: event_log
+  - source: mastra_driver
+    target: usage_meter
+  - source: mastra_driver
+    target: playbook
+  - source: mastra_driver
+    target: capabilities
+    label: "registry, session, gates"
+  - source: mastra_driver
+    target: cofounder_media
+    label: "private attachments"
+    style: longDashed
+  - source: mastra_driver
+    target: mastra_lib
+  - source: span_exporter
+    target: event_log
+    style: write
+  - source: span_exporter
+    target: usage_meter
+  - source: driver_tools
+    target: plan_model
+
+  # Reverse dependencies into the engine (layering leaks)
+  - source: notices
+    target: mastra_driver
+    label: "direct import"
+    style: error
+  - source: other_repos
+    target: driver_tools
+    label: "confirm-change types"
+    style: error
+  - source: other_repos
+    target: mastra_utils
+    label: "store-threads"
+    style: error
+
+  # Persistence
+  - source: arena_repo
+    target: entities
+  - source: other_repos
+    target: arena_repo
+  - source: playbook
+    target: playbook_entities
+
+  # HQ
+  - source: hq_controller
+    target: hq_services
+  - source: hq_services
+    target: playbook
+  - source: hq_services
+    target: reset_service
+  - source: hq_services
+    target: arena_service
+  - source: hq_services
+    target: hq_test_data
+
+  # chat-import
+  - source: arena_module
+    target: chat_import
+    label: "registers providers"
+  - source: chat_import
+    target: arena_service
+    style: longDashed
+  - source: chat_import
+    target: arena_repo
+    style: longDashed
+
+annotations:
+  - id: ann_driver_size
+    type: warning
+    message: "mastra.driver.ts is 5,121 lines / 306 KB in one class. It holds agents, tools, schedules, background tasks, wrap, recovery and metrics."
+    targetId: mastra_driver
+    targetType: node
+
+  - id: ann_seam
+    type: idea
+    message: "ArenaService and ConversationOwner use HarnessDriver, a clean seam. Notices and two repositories reach past it into mastra/ directly."
+    targetId: harness_iface
+    targetType: node
+
+  - id: ann_notices
+    type: warning
+    message: "PublishFailureNotices and CreditsRestoredNotices import MastraDriver directly instead of HarnessDriver."
+    targetId: notices
+    targetType: node
+
+  - id: ann_repo_hub
+    type: idea
+    message: "ArenaRepository (39 KB) is imported by most services, HQ, memory and the controller: one persistence hub for bindings, conversations, events, artifacts."
+    targetId: arena_repo
+    targetType: node

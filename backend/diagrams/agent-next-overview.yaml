@@ -1,0 +1,461 @@
+# =============================================================================
+# AGENT-NEXT (COFOUNDER) — MODULE OVERVIEW
+# =============================================================================
+# Codebase structure of amboras-dev-orchestrator/backend/src/modules/agent-next
+# Verified 2026-11-02 against origin/staging (0b9986788f).
+# Paths in metadata.file are relative to amboras-dev-orchestrator/.
+#
+# Status legend used here:
+#   tested       = has unit specs in the folder
+#   implemented  = built, no specs in that folder
+#   not_started  = proposed in agent-next/CLAUDE.md, not built
+# Edge legend:
+#   standard = Nest module import / code import
+#   dashed   = HTTP / runtime call
+#   write/read = persistence or infra
+# =============================================================================
+
+meta:
+  title: "agent-next (Cofounder) — Module Overview"
+  description: "Nest sub-modules, design docs, platform dependencies and infra of the Cofounder agent"
+
+groups:
+  - id: Group_Clients
+    label: "Clients (admin app)"
+    style: external
+
+  - id: Group_AgentNext
+    label: "backend/src/modules/agent-next"
+    style: controlPlane
+
+  - id: Group_Runtime
+    label: "Runtime (Nest modules)"
+    style: gold
+    parent: Group_AgentNext
+
+  - id: Group_Planned
+    label: "Proposed layers (CLAUDE.md D1) — not built"
+    style: bronze
+    parent: Group_AgentNext
+
+  - id: Group_Docs
+    label: "Design docs (no code)"
+    style: silver
+    parent: Group_AgentNext
+
+  - id: Group_Platform
+    label: "Platform modules (backend/src/modules)"
+    style: queryEngine
+
+  - id: Group_Libs
+    label: "Libraries"
+    style: external
+
+  - id: Group_Infra
+    label: "Infra / external services"
+    style: external
+
+nodes:
+  # ---------------------------------------------------------------------------
+  # Clients
+  # ---------------------------------------------------------------------------
+  - id: admin_panel
+    label: "Cofounder panel\n(arena-panel.tsx + use-arena / use-cofounder-chat)"
+    style: default
+    parent: Group_Clients
+    status: tested
+    metadata:
+      file: "admin/components/agent-next/arena-panel.tsx"
+      summary: "Chat docked beside every admin page. Hooks in admin/lib/hooks/: use-arena.ts (SSE + stop), use-cofounder-chat.ts, use-cofounder-plan.ts, use-cofounder-availability.ts."
+
+  - id: hq_page
+    label: "HQ Cofounder Playbook page\n(app/admin/hq/cofounder-playbook)"
+    style: default
+    parent: Group_Clients
+    status: implemented
+    metadata:
+      file: "admin/app/admin/hq/cofounder-playbook"
+      summary: "Internal admins: Playbook versions, default, store assignment, reset, experiment slots. Hook: admin/lib/hooks/use-hq-cofounder.ts."
+
+  # ---------------------------------------------------------------------------
+  # agent-next runtime
+  # ---------------------------------------------------------------------------
+  - id: agent_next_module
+    label: "AgentNextModule\n(agent-next.module.ts)"
+    style: primary
+    parent: Group_Runtime
+    status: implemented
+    metadata:
+      file: "backend/src/modules/agent-next/agent-next.module.ts"
+      summary: "Root Nest module, imported only by app.module.ts. Imports Capabilities, Arena, LinkPreview, CofounderMedia; exports CapabilitiesModule."
+
+  - id: arena_module
+    label: "ArenaModule\n(arena/ — the runtime)"
+    style: gold
+    parent: Group_Runtime
+    status: tested
+    metadata:
+      file: "backend/src/modules/agent-next/arena/arena.module.ts"
+      summary: "Controllers (/arena, /hq/cofounder), MastraDriver, turn queue, services, repositories, Playbook, plan, intake. ~70 source files, ~900 KB; mastra.driver.ts alone is 5.1k lines."
+      links:
+        - label: "Arena internals diagram"
+          url: "#agent-next-arena"
+
+  - id: capabilities_module
+    label: "CapabilitiesModule\n(capabilities/ — business tools)"
+    style: gold
+    parent: Group_Runtime
+    status: tested
+    metadata:
+      file: "backend/src/modules/agent-next/capabilities/capabilities.module.ts"
+      summary: "238 registry tools + 2 builder-only + 19 driver tools (tool-roles.snapshot.json). Cloned from Classic ai/tools/medusa (D2). Never imports arena/."
+      links:
+        - label: "Capabilities diagram"
+          url: "#agent-next-capabilities"
+
+  - id: chat_import
+    label: "chat-import/\n(Classic history → Cofounder)"
+    style: silver
+    parent: Group_Runtime
+    status: tested
+    metadata:
+      file: "backend/src/modules/agent-next/chat-import/chat-import.service.ts"
+      summary: "Imports a store's Classic chat into the Cofounder thread. No Nest module of its own: providers registered in ArenaModule."
+
+  - id: cofounder_media
+    label: "CofounderMediaModule\n(cofounder-media/ — attachments)"
+    style: silver
+    parent: Group_Runtime
+    status: tested
+    metadata:
+      file: "backend/src/modules/agent-next/cofounder-media/cofounder-media.module.ts"
+      summary: "POST /arena/stores/:storeId/attachments. Private attachment storage client (Supabase), file signature check, voice transcription via Classic's whisper client."
+
+  - id: link_preview
+    label: "LinkPreviewModule\n(link-preview/)"
+    style: default
+    parent: Group_Runtime
+    status: tested
+    metadata:
+      file: "backend/src/modules/agent-next/link-preview/link-preview.module.ts"
+      summary: "GET /arena/link-preview: fetches OG metadata for links in chat (throttled, cached)."
+
+  - id: purposes
+    label: "agent-next.purposes.ts\n(billing purpose ids)"
+    style: default
+    parent: Group_Runtime
+    status: implemented
+    metadata:
+      file: "backend/src/modules/agent-next/agent-next.purposes.ts"
+      summary: "AGENT_NEXT_PURPOSES: cofounder.storefront (billed to owner), cofounder.platform (our cost). Registered in ArenaModule.onModuleInit; also read by modules/ai usage code."
+
+  # ---------------------------------------------------------------------------
+  # Proposed layers that do not exist
+  # ---------------------------------------------------------------------------
+  - id: planned_harness
+    label: "harness/\n(engine layer)"
+    style: warning
+    parent: Group_Planned
+    status: not_started
+    metadata:
+      summary: "Proposed in CLAUDE.md so that swapping the engine touches one folder. Today the engine lives in arena/mastra/mastra.driver.ts."
+
+  - id: planned_surface
+    label: "surface/\n(HTTP + streaming + persistence)"
+    style: warning
+    parent: Group_Planned
+    status: not_started
+    metadata:
+      summary: "Proposed in CLAUDE.md. Today HTTP, SSE and persistence live in arena/ (controller, services, repositories)."
+
+  # ---------------------------------------------------------------------------
+  # Design docs
+  # ---------------------------------------------------------------------------
+  - id: doc_claude_md
+    label: "CLAUDE.md\n(goal, rules, decision log D1–D16)"
+    style: default
+    parent: Group_Docs
+    status: implemented
+    metadata:
+      file: "backend/src/modules/agent-next/CLAUDE.md"
+      summary: "Goal, approval rules, import boundaries, tool roles, decision log. Status section dated 2026-10-26."
+
+  - id: doc_plans
+    label: "plans/ 001–012\n(design plans)"
+    style: default
+    parent: Group_Docs
+    status: implemented
+    metadata:
+      file: "backend/src/modules/agent-next/plans/"
+      summary: "15 files: comparison arena, message coordination, check-ins, memory, storefront builder, multi-instance runtime, playbook, text approval, failed publish, image refs, tool roles, theme context, builder restarts."
+
+  - id: doc_decisions
+    label: "decisions/\n(D16 only)"
+    style: default
+    parent: Group_Docs
+    status: implemented
+    metadata:
+      file: "backend/src/modules/agent-next/decisions/D16-platform-held-confirmations.md"
+      summary: "Only one decision record exists; D1–D12 are rows in CLAUDE.md."
+
+  - id: doc_skills
+    label: ".claude/skills/\n(module playbooks)"
+    style: default
+    parent: Group_Docs
+    status: implemented
+    metadata:
+      file: "backend/src/modules/agent-next/.claude/skills/"
+      summary: "chat-confirmations, playbook-versions, secret-input, storefront-builder."
+
+  # ---------------------------------------------------------------------------
+  # Platform modules
+  # ---------------------------------------------------------------------------
+  - id: plat_classic_ai
+    label: "modules/ai\n(Classic AI)"
+    style: warning
+    parent: Group_Platform
+    metadata:
+      file: "backend/src/modules/ai/"
+      summary: "Imported despite the CLAUDE.md boundary: AiModule (Arena + Capabilities), UsageTrackingService, AiUsageRepository, AiEscalationService, platform-kb, migration-status-reader, whisper client, image-cost util, message-feedback DTO. modules/ai imports agent-next.purposes back."
+
+  - id: plat_identity
+    label: "stores · store-members · profiles · auth\n(+ @amboras/auth-contract)"
+    style: default
+    parent: Group_Platform
+    metadata:
+      summary: "Store ownership guard, member roles (STORE_ACCESS areas), profiles. Used by arena, capabilities, chat-import, cofounder-media."
+
+  - id: plat_billing
+    label: "billing · run-billing · credit-policies\nai-models · hq"
+    style: default
+    parent: Group_Platform
+    metadata:
+      summary: "Credit metering, EntitlementPolicy, HQ-picked model preset (AiModelPresetService), HQ audit."
+
+  - id: plat_store_ops
+    label: "workspace · git · deployment · preview-provider\nscreenshot · design-tokens · store-setup · imports"
+    style: default
+    parent: Group_Platform
+    metadata:
+      summary: "Storefront workspace sessions, git push, deploys, preview URLs, screenshots. Used by capabilities (storefront, file, verify, setup, web)."
+
+  - id: plat_integrations
+    label: "~25 *-integrations · plugins · dropshipping\npayment providers · plugin credentials"
+    style: default
+    parent: Group_Platform
+    metadata:
+      file: "backend/src/modules/agent-next/capabilities/capabilities.module.ts"
+      summary: "Shipping, ads, email marketing, POD, Shopify, etc. Imported into CapabilitiesModule for credentials/ and plugin/ tools."
+
+  - id: plat_common
+    label: "common/* · config · shared/*"
+    style: default
+    parent: Group_Platform
+    metadata:
+      summary: "ConfigService (flags, env), database, logging, scheduling, security, observability, net, cache; shared/ metafield + product rules."
+
+  # ---------------------------------------------------------------------------
+  # Libraries
+  # ---------------------------------------------------------------------------
+  - id: lib_mastra
+    label: "Mastra\n(@mastra/core · memory · pg · observability)"
+    style: bronze
+    parent: Group_Libs
+    metadata:
+      summary: "Agent loop, Memory (working/observational/recall), schedules, background tasks. Only arena/mastra and arena/services import it."
+
+  - id: lib_ai_sdk
+    label: "@ai-sdk/anthropic"
+    style: bronze
+    parent: Group_Libs
+    metadata:
+      summary: "Only model provider. Imported in arena/mastra only."
+
+  - id: lib_ecomcoder_llm
+    label: "@ecomcoder/llm\n(PurposeRow, model catalog types)"
+    style: bronze
+    parent: Group_Libs
+    metadata:
+      summary: "Shared with Classic; used for purposes, docs search, images, media."
+
+  # ---------------------------------------------------------------------------
+  # Infra
+  # ---------------------------------------------------------------------------
+  - id: infra_postgres
+    label: "Postgres\n(agent_next_* · cofounder_playbook_* · mastra_arena schema)"
+    style: bronze
+    parent: Group_Infra
+    metadata:
+      summary: "TypeORM entities in arena/entities, arena/playbook/entities, arena/hq/entities; Mastra's own tables via @mastra/pg."
+
+  - id: infra_redis
+    label: "Redis\n(BullMQ · owner lease · event pub/sub)"
+    style: bronze
+    parent: Group_Infra
+    metadata:
+      summary: "Queues cofounder-turn and cofounder-test-data; conversation-owner lease; RedisArenaEventBus."
+
+  - id: infra_anthropic
+    label: "Anthropic API"
+    style: bronze
+    parent: Group_Infra
+
+  - id: infra_storage
+    label: "Supabase storage\n(private attachments)"
+    style: bronze
+    parent: Group_Infra
+
+  - id: infra_datadog
+    label: "Datadog\n(dogstatsd metrics)"
+    style: bronze
+    parent: Group_Infra
+
+edges:
+  # Clients → module
+  - source: admin_panel
+    target: arena_module
+    label: "HTTP /arena + SSE"
+    style: dashed
+  - source: admin_panel
+    target: cofounder_media
+    label: "upload"
+    style: dashed
+  - source: admin_panel
+    target: link_preview
+    style: dashed
+  - source: hq_page
+    target: arena_module
+    label: "HTTP /hq/cofounder"
+    style: dashed
+
+  # Module composition
+  - source: agent_next_module
+    target: arena_module
+  - source: agent_next_module
+    target: capabilities_module
+  - source: agent_next_module
+    target: cofounder_media
+  - source: agent_next_module
+    target: link_preview
+  - source: arena_module
+    target: capabilities_module
+    label: "tools + StoreSession"
+  - source: arena_module
+    target: chat_import
+    label: "registers providers"
+  - source: arena_module
+    target: purposes
+  - source: chat_import
+    target: arena_module
+    label: "imports repos/services"
+    style: longDashed
+  - source: cofounder_media
+    target: arena_module
+    label: "guard + storage client"
+    style: longDashed
+  - source: capabilities_module
+    target: cofounder_media
+    label: "attachments storage client"
+    style: longDashed
+
+  # Planned layers mirror where code lives today
+  - source: planned_harness
+    target: arena_module
+    label: "lives in arena/mastra today"
+    style: longDashed
+  - source: planned_surface
+    target: arena_module
+    label: "lives in arena/ today"
+    style: longDashed
+
+  # Platform dependencies
+  - source: arena_module
+    target: plat_classic_ai
+    style: error
+    label: "boundary breach"
+  - source: capabilities_module
+    target: plat_classic_ai
+    style: error
+    label: "boundary breach"
+  - source: cofounder_media
+    target: plat_classic_ai
+    style: error
+  - source: plat_classic_ai
+    target: purposes
+    label: "imports back"
+    style: longDashed
+  - source: arena_module
+    target: plat_identity
+  - source: capabilities_module
+    target: plat_identity
+  - source: arena_module
+    target: plat_billing
+  - source: capabilities_module
+    target: plat_billing
+  - source: capabilities_module
+    target: plat_store_ops
+  - source: capabilities_module
+    target: plat_integrations
+  - source: arena_module
+    target: plat_common
+    style: longDashed
+  - source: capabilities_module
+    target: plat_common
+    style: longDashed
+
+  # Libraries
+  - source: arena_module
+    target: lib_mastra
+  - source: arena_module
+    target: lib_ai_sdk
+  - source: arena_module
+    target: lib_ecomcoder_llm
+    style: longDashed
+  - source: capabilities_module
+    target: lib_ecomcoder_llm
+    style: longDashed
+
+  # Infra
+  - source: arena_module
+    target: infra_postgres
+    style: write
+  - source: lib_mastra
+    target: infra_postgres
+    style: write
+  - source: arena_module
+    target: infra_redis
+    style: write
+  - source: lib_ai_sdk
+    target: infra_anthropic
+    style: dashed
+  - source: cofounder_media
+    target: infra_storage
+    style: write
+  - source: arena_module
+    target: infra_datadog
+    style: dashed
+
+annotations:
+  - id: ann_ai_boundary
+    type: warning
+    message: "CLAUDE.md says never import from modules/ai/. 20 import lines in 15 files do (AiModule, usage tracking, escalation, platform-kb, migration status, whisper). ai/ also imports agent-next.purposes, so the two modules are coupled both ways."
+    targetId: plat_classic_ai
+    targetType: node
+
+  - id: ann_layers
+    type: idea
+    message: "harness/ and surface/ were the planned split so the engine is swappable. Today everything sits in arena/: swapping Mastra means editing arena/mastra + services."
+    targetId: planned_harness
+    targetType: node
+
+  - id: ann_chat_import
+    type: warning
+    message: "chat-import ↔ arena import each other (chat-import uses arena repos/services; ArenaModule hosts its providers). chat-import.service.ts copies COFOUNDER_DEFAULT_HARNESS to avoid a cycle."
+    targetId: chat_import
+    targetType: node
+
+  - id: ann_decisions
+    type: todo
+    message: "Only D16 has a decision file. D1–D12 still proposed/open in CLAUDE.md (dated 2026-10-26)."
+    targetId: doc_decisions
+    targetType: node

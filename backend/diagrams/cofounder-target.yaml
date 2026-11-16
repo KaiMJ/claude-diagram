@@ -1,0 +1,703 @@
+# =============================================================================
+# COFOUNDER RUNTIME — TARGET ARCHITECTURE (proposal, nothing built)
+# =============================================================================
+# Source: proposals/cofounder-runtime-architecture.md (draft 2026-11-02).
+# Requirements: proposals/cofounder-redesign-requirements.md (R-/FLOW-/HZ- ids).
+# Paths in metadata.file are PROPOSED paths in amboras-dev-orchestrator/,
+# except Group_Reused, which exists today.
+#
+# Status legend:
+#   not_started = proposed, not built
+#   tested      = exists today with specs, reused as is
+#   (none)      = removed by this design
+# Edge legend:
+#   write (blue)   = appends / writes a table
+#   read (green)   = reads a table
+#   standard       = code call / import
+#   dashed         = queue job, pub/sub or signal
+# =============================================================================
+
+meta:
+  title: "Cofounder runtime — target architecture"
+  description: "One durable inbox per conversation, one consumer, the event log as truth; capabilities reused (proposal)"
+
+groups:
+  - id: Group_Admin
+    label: "Admin app (unchanged)"
+    style: external
+
+  - id: Group_Surface
+    label: "cofounder/surface/ — routes, ingress, SSE (same contracts)"
+    style: bronze
+
+  - id: Group_Kernel
+    label: "cofounder/kernel/ — inbox, consumer, event log (no AI)"
+    style: gold
+
+  - id: Group_Agent
+    label: "cofounder/agent/ — one turn = handle claimed inputs"
+    style: silver
+
+  - id: Group_Work
+    label: "cofounder/work/ — tasks, schedules, control"
+    style: silver
+
+  - id: Group_Rules
+    label: "cofounder/rules/ — pure policy, unit-tested"
+    style: queryEngine
+
+  - id: Group_Memory
+    label: "cofounder/memory/ — derived from the log"
+    style: silver
+
+  - id: Group_PlatformAdapters
+    label: "cofounder/platform/ — adapters (no modules/ai import)"
+    style: bronze
+
+  - id: Group_Reused
+    label: "Reused as is (exists today)"
+    style: gold
+
+  - id: Group_Data
+    label: "Postgres (Supabase) — the truth"
+    style: gold
+
+  - id: Group_Infra
+    label: "Infra & outside services"
+    style: external
+
+  - id: Group_Removed
+    label: "Removed from today's arena/ (→ what replaces it)"
+    style: external
+
+nodes:
+  # ---------------------------------------------------------------------------
+  # Admin
+  # ---------------------------------------------------------------------------
+  - id: admin_chat
+    label: "Cofounder chat\n(admin/components/agent-next)"
+    style: default
+    parent: Group_Admin
+    metadata:
+      file: "admin/components/agent-next/"
+      summary: "Unchanged. Same routes, EventDto and SSE stream; it does not know which runtime answers."
+
+  # ---------------------------------------------------------------------------
+  # surface/
+  # ---------------------------------------------------------------------------
+  - id: messages_route
+    label: "POST …/messages\n(ingress checks → append)"
+    style: primary
+    parent: Group_Surface
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/surface/"
+      summary: "JWT, store access, rollout, reset fence, secret scrub, theme, 64k cap, free AI cap; then user.message event + inbox item in one transaction (FLOW-1)."
+
+  - id: stop_route
+    label: "POST …/stop\n(control, not queued)"
+    style: primary
+    parent: Group_Surface
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/surface/"
+      summary: "Stop must work at once, even mid-turn and at the free AI cap, so it bypasses the inbox (FLOW-4, R-04-01)."
+
+  - id: credential_route
+    label: "POST …/credentials\n(submit secret)"
+    style: primary
+    parent: Group_Surface
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/surface/"
+      summary: "Same checks as today (1 h request, role, fields, advisory lock); writes credential.updated and appends credential.result (FLOW-9)."
+
+  - id: sse_stream
+    label: "SSE stream\n(EventDto, replay, pings)"
+    style: primary
+    parent: Group_Surface
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/surface/"
+      summary: "Same contract as today: 19 chat kinds, replay markers, reset floor, read roles. Fed by the Redis fan-out."
+
+  # ---------------------------------------------------------------------------
+  # kernel/
+  # ---------------------------------------------------------------------------
+  - id: inbox_append
+    label: "Inbox.append\n(dedupe_key UNIQUE)"
+    style: gold
+    parent: Group_Kernel
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/kernel/inbox.ts"
+      summary: "The only way anything reaches a conversation. Every producer appends with a dedupe key, so retries are no-ops (HZ-01, HZ-24, HZ-28). Rings the doorbell after commit."
+
+  - id: consumer
+    label: "Consumer\n(lease + fence, one per conversation)"
+    style: gold
+    parent: Group_Kernel
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/kernel/consumer.ts"
+      summary: "Acquires the Postgres lease (fence+1), claims pending items in order, runs one turn at a time, commits reply + items done + turn end in one fenced transaction, re-checks the inbox after release."
+      todos:
+        - "Inbox property test: 5 producers, 2 consumers, random crashes → exactly once, in order"
+        - "Crash-at-every-step test"
+
+  - id: event_log
+    label: "EventLog writer\n(offload, redact, read roles)"
+    style: gold
+    parent: Group_Kernel
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/kernel/event-log.ts"
+      summary: "Single writer of agent_next_events: payload offload above 32 KB, redaction, read-role stamping, Redis fan-out."
+
+  - id: projections
+    label: "Projections\n(open work, builderStarted, plan view)"
+    style: silver
+    parent: Group_Kernel
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/kernel/projections.ts"
+      summary: "Queries or small derived tables updated in the same transaction as the event. Replaces in-process maps."
+
+  # ---------------------------------------------------------------------------
+  # agent/
+  # ---------------------------------------------------------------------------
+  - id: turn_assembly
+    label: "Turn assembly\n(context, session, pin)"
+    style: silver
+    parent: Group_Agent
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/agent/turn.ts"
+      summary: "Builds prompt, tools, store facts, memory, open work, window + latest compaction, and the claimed inputs. Session from rules/session; pin (model, effort, Playbook version) written once to cofounder_turns."
+
+  - id: step_loop
+    label: "Step loop\n(beforeStep: inbox + abort)"
+    style: silver
+    parent: Group_Agent
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/agent/step-loop.ts"
+      summary: "At each step boundary: fold in new merchant messages, check abort and lease. onStep writes events and usage."
+
+  - id: engine_port
+    label: "Engine port\n(the only model-SDK import)"
+    style: gold
+    parent: Group_Agent
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/agent/engine/"
+      summary: "run({profile, messages, beforeStep, onStep, signal}). Owns no storage, wake, scheduling or memory. Swapping it touches one folder."
+      todos:
+        - "D4 spike: own loop on ai@7 vs @ecomcoder/harness AgentLoop (2 days)"
+
+  - id: profiles
+    label: "Agent profiles\n(cofounder 20 · worker 40 · builder 100)"
+    style: default
+    parent: Group_Agent
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/agent/profiles.ts"
+      summary: "Tool sets enforced by the registry, not the prompt: cofounder reads and coordinates, workers write, the builder edits storefront code."
+
+  - id: prompts
+    label: "prompts/*.md\n(composer + budget test)"
+    style: default
+    parent: Group_Agent
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/agent/prompts/"
+      summary: "One Markdown file per section, composed per profile, cache-stable order. CI fails over the token budget. Rules moved to code per the PRM table."
+
+  - id: coord_tools
+    label: "Coordination tools\n(delegate, build, steer, cancel, confirm…)"
+    style: default
+    parent: Group_Agent
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/agent/tools/"
+      summary: "Built through one helper that stamps their area so payload read roles work. delegate/build insert a task row synchronously (HZ-11)."
+
+  # ---------------------------------------------------------------------------
+  # work/
+  # ---------------------------------------------------------------------------
+  - id: task_service
+    label: "TaskService\n(insert · closeTask)"
+    style: gold
+    parent: Group_Work
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/work/tasks.ts"
+      summary: "Insert is synchronous (started / queued / refused). closeTask is the ONE end path: status + result + lock release + task.ended inbox item in one transaction. Result reported exactly once (HZ-08, HZ-09, HZ-15)."
+
+  - id: task_runner
+    label: "Task runner\n(worker · builder · change)"
+    style: silver
+    parent: Group_Work
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/work/runner.ts"
+      summary: "BullMQ consumer on the worker tier (workerProviders). Leases the task row, heartbeats, runs the engine with the task's profile. Builder: store lock + theme lease shared with Classic; deploys park as restart."
+
+  - id: schedule_sweep
+    label: "Schedule sweep\n(@ScheduledTask, every minute)"
+    style: silver
+    parent: Group_Work
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/work/schedules.ts"
+      summary: "Claims due rows FOR UPDATE SKIP LOCKED, appends schedule.fired keyed by occurrence, advances next_due_at — one transaction. Also rings doorbells for orphaned inboxes and closes dead tasks as process_lost."
+
+  - id: control
+    label: "Control\n(stop · cancel · steer)"
+    style: error
+    parent: Group_Work
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/work/control.ts"
+      summary: "One transaction: cancel flags on tasks in scope, drop queued/held briefs, save pending push aside, retire review. Then publish abort. The running turn gets a 'stopped' flag so hand-offs refuse."
+
+  # ---------------------------------------------------------------------------
+  # rules/
+  # ---------------------------------------------------------------------------
+  - id: rules_confirm
+    label: "confirmations\n(D16: who, which, still valid)"
+    style: default
+    parent: Group_Rules
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/rules/confirmations.ts"
+      summary: "Model judges whether a reply means yes (C-12); code enforces same person, oldest open change, shown, facts unchanged, lifetimes (R-05)."
+
+  - id: rules_session
+    label: "session · stop-scope\ntheme-target"
+    style: default
+    parent: Group_Rules
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/rules/"
+      summary: "Author role for merchant turns, lowest participant role otherwise; what a stop reaches per role; which theme a request acts on (never LIVE by fallback)."
+
+  - id: rules_gates
+    label: "allowance · schedule-gates\nplan · report"
+    style: default
+    parent: Group_Rules
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/rules/"
+      summary: "Free AI cap, fire gates checked against current state, plan evidence/goal/progress, what a task.ended report must say."
+
+  # ---------------------------------------------------------------------------
+  # memory/
+  # ---------------------------------------------------------------------------
+  - id: memory_doc
+    label: "Memory document\n(per store, CAS revisions)"
+    style: silver
+    parent: Group_Memory
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/memory/"
+      summary: "Business facts, preferences, people, decisions, commitments, one Storefront section per theme. Not given below manager."
+      todos:
+        - "D10: add observations only if evals show lost facts"
+
+  - id: memory_writer
+    label: "Memory writer job\n(off the hot path)"
+    style: silver
+    parent: Group_Memory
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/memory/writer.ts"
+      summary: "After a turn, reads the new events and updates the document. Nothing rewrites memory before a reply (R-08-08)."
+
+  - id: recall
+    label: "Recall + compaction\n(over the event log)"
+    style: silver
+    parent: Group_Memory
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/memory/"
+      summary: "Recall: paged search of this store's log, ≤3 calls per turn. Compaction: a context.compacted event; never changes task, plan or confirmation state."
+
+  # ---------------------------------------------------------------------------
+  # platform/
+  # ---------------------------------------------------------------------------
+  - id: platform_adapters
+    label: "Usage ledger · rollout/binding\nescalations · reset/deletion"
+    style: default
+    parent: Group_PlatformAdapters
+    status: not_started
+    metadata:
+      file: "backend/src/modules/cofounder/platform/"
+      summary: "Every step bills payer + purpose. bindings.harness selects the runtime per store. Every new table registers with reset and store deletion."
+
+  # ---------------------------------------------------------------------------
+  # Reused
+  # ---------------------------------------------------------------------------
+  - id: capabilities
+    label: "agent-next/capabilities\n(238 tools, role gate, StoreSession)"
+    style: gold
+    parent: Group_Reused
+    status: tested
+    metadata:
+      file: "backend/src/modules/agent-next/capabilities/"
+      summary: "Business tools reused as is: names, object results, STORE_ACCESS areas, money package. Moves into cofounder/ once arena/ is deleted (R-22-01)."
+
+  - id: storefront_kit
+    label: "capabilities/storefront\n(builder kit, verify, push)"
+    style: gold
+    parent: Group_Reused
+    status: tested
+    metadata:
+      file: "backend/src/modules/agent-next/capabilities/storefront/"
+      summary: "Verify before push, park, PARTIAL + CONTINUE, workspace recovery (R-03-08..16)."
+
+  - id: confirm_core
+    label: "capabilities/confirmation\n+ credentials + media"
+    style: gold
+    parent: Group_Reused
+    status: tested
+    metadata:
+      file: "backend/src/modules/agent-next/capabilities/confirmation/"
+      summary: "D16 describers and stored-call execution; request_credential; cofounder-media uploads and caps (FLOW-5, 9, 10)."
+
+  # ---------------------------------------------------------------------------
+  # Postgres
+  # ---------------------------------------------------------------------------
+  - id: tbl_inbox
+    label: "cofounder_inbox\n(new)"
+    style: gold
+    parent: Group_Data
+    status: not_started
+    metadata:
+      summary: "kind, payload, dedupe_key UNIQUE, status pending/claimed/done/dropped, available_at, author, theme."
+
+  - id: tbl_conversations
+    label: "agent_next_conversations\n(+ lease_holder, lease_until, fence)"
+    style: gold
+    parent: Group_Data
+    status: not_started
+    metadata:
+      summary: "Kept; now also the consumer lease. Replaces the Redis cofounder:owner key."
+
+  - id: tbl_events
+    label: "agent_next_events\n(kept, + turn_id)"
+    style: gold
+    parent: Group_Data
+    status: tested
+    metadata:
+      summary: "The transcript and audit log, admin contract unchanged. Source of truth and of model context (resolves contradiction 1)."
+
+  - id: tbl_turns
+    label: "cofounder_turns\n(pin, fence, status)"
+    style: silver
+    parent: Group_Data
+    status: not_started
+
+  - id: tbl_tasks
+    label: "cofounder_tasks\n(status, lease, cancel, result, payer)"
+    style: silver
+    parent: Group_Data
+    status: not_started
+
+  - id: tbl_state
+    label: "schedules · held_changes\nplans · memory"
+    style: silver
+    parent: Group_Data
+    status: not_started
+    metadata:
+      summary: "Moved out of mastra_thread_state into our own tables, each registered for reset and deletion."
+
+  # ---------------------------------------------------------------------------
+  # Infra
+  # ---------------------------------------------------------------------------
+  - id: bullmq
+    label: "BullMQ doorbells\n(cofounder-conversation · -task · -memory)"
+    style: default
+    parent: Group_Infra
+    metadata:
+      summary: "Jobs carry only an id. Losing one costs latency, not correctness: the sweep re-rings."
+
+  - id: redis
+    label: "Redis pub/sub\n(SSE fan-out · abort channel)"
+    style: default
+    parent: Group_Infra
+    metadata:
+      summary: "Not used for ownership or state any more."
+
+  - id: llm
+    label: "Anthropic via @ecomcoder/llm\n(catalog, HQ preset, cost)"
+    style: default
+    parent: Group_Infra
+
+  - id: observability
+    label: "OTel → Langfuse\n+ Datadog metrics"
+    style: default
+    parent: Group_Infra
+
+  # ---------------------------------------------------------------------------
+  # Removed
+  # ---------------------------------------------------------------------------
+  - id: gone_driver
+    label: "MastraDriver\n(5,121 lines, one class)\n→ kernel/ agent/ work/ rules/"
+    style: error
+    parent: Group_Removed
+    metadata:
+      file: "backend/src/modules/agent-next/arena/mastra/mastra.driver.ts"
+      summary: "Split into kernel/, agent/, work/ and rules/; Mastra storage, wake, scheduler and background tasks are not used."
+
+  - id: gone_intake
+    label: "Intake ledger, epochs\noutput gate, asides, answered\n→ inbox order + step fold-in"
+    style: error
+    parent: Group_Removed
+    metadata:
+      summary: "Replaced by inbox order + step-boundary fold-in (HZ-02, 03, 04, 05)."
+
+  - id: gone_lease
+    label: "Redis owner lease\n+ forwarding, ownsHere()\n→ Postgres lease + fence"
+    style: error
+    parent: Group_Removed
+    metadata:
+      summary: "Replaced by one Postgres lease with a fence (HZ-07, 12, 20, 30, 31, 32)."
+
+  - id: gone_wake
+    label: "Native wake + announce\nwatchNativeTurn, reportedSoon\n→ closeTask → task.ended"
+    style: error
+    parent: Group_Removed
+    metadata:
+      summary: "The duplicate-report bug lives here. Replaced by closeTask → task.ended → one report (HZ-08, HZ-09)."
+
+  - id: gone_recovery
+    label: "Recovery sweeps\n+ catch-up schedules\n→ lease expiry + inbox"
+    style: error
+    parent: Group_Removed
+    metadata:
+      summary: "Replaced by lease expiry and items staying in the inbox (FLOW-7, HZ-22, 23, 33)."
+
+edges:
+  # Admin ↔ surface
+  - source: admin_chat
+    target: messages_route
+    label: send
+  - source: admin_chat
+    target: stop_route
+    label: stop
+  - source: admin_chat
+    target: credential_route
+    label: secret
+  - source: admin_chat
+    target: sse_stream
+    label: subscribe
+    style: dashed
+    animated: true
+
+  # Producers → inbox
+  - source: messages_route
+    target: inbox_append
+    label: merchant.message
+    style: write
+  - source: credential_route
+    target: inbox_append
+    label: credential.result
+    style: write
+  - source: task_service
+    target: inbox_append
+    label: task.ended
+    style: write
+  - source: schedule_sweep
+    target: inbox_append
+    label: schedule.fired · plan.review
+    style: write
+  - source: inbox_append
+    target: tbl_inbox
+    style: write
+  - source: inbox_append
+    target: bullmq
+    label: ring doorbell
+    style: dashed
+
+  # Consumer loop
+  - source: consumer
+    target: bullmq
+    label: woken by doorbell
+    style: dashed
+    animated: true
+  - source: consumer
+    target: tbl_conversations
+    label: lease + fence
+    style: write
+  - source: consumer
+    target: tbl_inbox
+    label: claim in order
+    style: read
+  - source: consumer
+    target: turn_assembly
+    label: run turn
+  - source: consumer
+    target: event_log
+    label: reply + items done (1 tx)
+    style: write
+
+  # Turn
+  - source: turn_assembly
+    target: rules_session
+  - source: turn_assembly
+    target: memory_doc
+    style: read
+  - source: turn_assembly
+    target: projections
+    style: read
+  - source: turn_assembly
+    target: prompts
+  - source: turn_assembly
+    target: profiles
+  - source: turn_assembly
+    target: step_loop
+  - source: step_loop
+    target: engine_port
+  - source: step_loop
+    target: tbl_inbox
+    label: fold in new messages
+    style: read
+  - source: engine_port
+    target: llm
+  - source: engine_port
+    target: capabilities
+    label: tool calls
+  - source: engine_port
+    target: coord_tools
+    label: tool calls
+
+  # Coordination → work
+  - source: coord_tools
+    target: task_service
+    label: insert task (sync)
+  - source: coord_tools
+    target: rules_confirm
+  - source: task_service
+    target: tbl_tasks
+    style: write
+  - source: task_service
+    target: bullmq
+    label: run task
+    style: dashed
+  - source: task_runner
+    target: bullmq
+    label: consumes task jobs
+    style: dashed
+  - source: task_runner
+    target: engine_port
+    label: worker / builder profile
+  - source: task_runner
+    target: storefront_kit
+  - source: task_runner
+    target: confirm_core
+    label: change task
+  - source: task_runner
+    target: task_service
+    label: closeTask
+
+  # Control
+  - source: stop_route
+    target: control
+  - source: control
+    target: rules_session
+    label: stop-scope
+  - source: control
+    target: tbl_tasks
+    label: cancel flags
+    style: write
+  - source: control
+    target: redis
+    label: abort
+    style: dashed
+  - source: task_runner
+    target: redis
+    label: listens for abort
+    style: dashed
+
+  # Schedules
+  - source: schedule_sweep
+    target: tbl_state
+    label: due schedules
+    style: read
+  - source: consumer
+    target: rules_gates
+    label: fire gates, report
+
+  # Event log & stream
+  - source: event_log
+    target: tbl_events
+    style: write
+  - source: event_log
+    target: redis
+    label: fan-out
+    style: dashed
+  - source: sse_stream
+    target: redis
+    label: subscribes
+    style: dashed
+  - source: consumer
+    target: tbl_turns
+    style: write
+
+  # Memory
+  - source: event_log
+    target: memory_writer
+    label: after turn
+    style: dashed
+  - source: memory_writer
+    target: tbl_state
+    label: memory doc
+    style: write
+  - source: recall
+    target: tbl_events
+    style: read
+
+  # Platform
+  - source: step_loop
+    target: platform_adapters
+    label: usage per step
+  - source: messages_route
+    target: platform_adapters
+    label: rollout
+  - source: engine_port
+    target: observability
+    style: dashed
+
+
+annotations:
+  - id: ann_one_way_in
+    type: idea
+    message: "The only way a model run starts on a conversation: the consumer takes the next inbox item."
+    targetId: consumer
+    targetType: node
+  - id: ann_exactly_once
+    type: idea
+    message: "closeTask is the one end path — a result reaches the merchant exactly once."
+    targetId: task_service
+    targetType: node
+  - id: ann_engine
+    type: todo
+    message: "D4 engine spike before M2: own loop on ai@7 vs @ecomcoder/harness AgentLoop."
+    targetId: engine_port
+    targetType: node
+  - id: ann_dup_bug
+    type: warning
+    message: "Today's duplicate-report bug: native wake and our announcement both speak."
+    targetId: gone_wake
+    targetType: node
+  - id: ann_stop
+    type: idea
+    message: "Stop bypasses the inbox: it must work mid-turn and at the free AI cap."
+    targetId: control
+    targetType: node
+  - id: ann_memory
+    type: todo
+    message: "D10: start with the document; add observations only if evals show lost facts."
+    targetId: memory_doc
+    targetType: node

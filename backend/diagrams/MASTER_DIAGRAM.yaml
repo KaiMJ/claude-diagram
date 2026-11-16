@@ -21,6 +21,11 @@ categories:
     description: Frontend modules and components
     icon: "🖥️"
 
+  - id: agent-next
+    label: Cofounder (agent-next)
+    description: amboras-dev-orchestrator backend/src/modules/agent-next
+    icon: "🤝"
+
 # =============================================================================
 # DIAGRAMS
 # =============================================================================
@@ -68,3 +73,78 @@ diagrams:
     category: backend
     icon: "🔐"
     description: Authentication, OAuth, and account management
+
+  # ---------------------------------------------------------------------------
+  # Cofounder (agent-next) — amboras-dev-orchestrator, structure pass 2026-11-02
+  # Paths are relative to amboras-dev-orchestrator/.
+  # ---------------------------------------------------------------------------
+  - slug: agent-next-overview
+    title: agent-next Overview
+    category: agent-next
+    icon: "🗺️"
+    description: Nest sub-modules, design docs, platform modules, libraries and infra of the Cofounder agent
+    focus: Module composition and boundaries (incl. the modules/ai boundary breach and the unbuilt harness/ and surface/ layers)
+    entry_points:
+      - backend/src/modules/agent-next/agent-next.module.ts
+    core_files:
+      - backend/src/modules/agent-next/*.ts
+      - backend/src/modules/agent-next/CLAUDE.md
+      - backend/src/modules/agent-next/plans/*.md
+      - backend/src/modules/agent-next/decisions/*.md
+      - admin/components/agent-next/*.tsx
+    connections:
+      - agent-next-arena
+      - agent-next-capabilities
+
+  - slug: agent-next-arena
+    title: agent-next Arena Runtime
+    category: agent-next
+    icon: "🏟️"
+    description: arena/ folder structure — HTTP, turn queue, services, Mastra driver, domain models, persistence, HQ
+    focus: Who imports whom inside arena/; the HarnessDriver seam and where it leaks
+    entry_points:
+      - backend/src/modules/agent-next/arena/arena.module.ts
+      - backend/src/modules/agent-next/arena/arena.controller.ts
+    core_files:
+      - backend/src/modules/agent-next/arena/*.ts
+      - backend/src/modules/agent-next/arena/services/*.ts
+      - backend/src/modules/agent-next/arena/mastra/*.ts
+      - backend/src/modules/agent-next/arena/repositories/*.ts
+      - backend/src/modules/agent-next/arena/{turn-queue,intake,plan,playbook,hq,entities}/
+      - backend/src/modules/agent-next/chat-import/*.ts
+    connections:
+      - agent-next-overview
+      - agent-next-capabilities
+
+  - slug: agent-next-capabilities
+    title: agent-next Capabilities
+    category: agent-next
+    icon: "🧰"
+    description: capabilities/ — tool contract, role gate, confirmation, StoreSession and ~30 tool families
+    focus: Tool families and their shared dependencies (medusa client, confirmation, utils, platform modules)
+    entry_points:
+      - backend/src/modules/agent-next/capabilities/capabilities.module.ts
+      - backend/src/modules/agent-next/capabilities/capabilities.registry.ts
+    core_files:
+      - backend/src/modules/agent-next/capabilities/*.ts
+      - backend/src/modules/agent-next/capabilities/confirmation/*.ts
+      - backend/src/modules/agent-next/capabilities/medusa/**/*.ts
+      - backend/src/modules/agent-next/capabilities/*/*-tools.factory.ts
+    connections:
+      - agent-next-overview
+      - agent-next-arena
+
+  - slug: cofounder-target
+    title: Cofounder Target Architecture
+    category: agent-next
+    icon: "🎯"
+    description: Proposed runtime — one durable inbox per conversation, one consumer, event log as truth (nothing built)
+    focus: Target module layout (kernel/agent/work/rules/memory/platform), tables, queues, reused capabilities, and which arena/ pieces each part replaces
+    entry_points:
+      - proposals/cofounder-runtime-architecture.md
+    core_files:
+      - backend/src/modules/cofounder/**/*.ts
+    connections:
+      - agent-next-arena
+      - agent-next-capabilities
+      - agent-next-overview

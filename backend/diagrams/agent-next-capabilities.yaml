@@ -1,0 +1,539 @@
+# =============================================================================
+# AGENT-NEXT — CAPABILITIES (TOOLS) STRUCTURE
+# =============================================================================
+# Folder structure of backend/src/modules/agent-next/capabilities: the tool
+# contract, the gates every tool passes through, and the ~30 tool families.
+# Edges are code imports between folders (per-file import scan).
+# Tool counts come from capabilities/__tests__/tool-roles.snapshot.json:
+#   238 registry tools · 2 builder-only · 19 driver tools (driver tools live in arena/mastra).
+# Verified 2026-11-02 against origin/staging (0b9986788f).
+# Paths in metadata.file are relative to backend/src/modules/agent-next/capabilities/.
+#
+# Status: tested = folder has unit specs; implemented = no specs there.
+# =============================================================================
+
+meta:
+  title: "agent-next — Capabilities (Tools) Structure"
+  description: "Tool contract, role gate, confirmation, StoreSession and the tool families"
+
+groups:
+  - id: Group_Consumer
+    label: "Consumers"
+    style: external
+
+  - id: Group_Core
+    label: "capabilities/ (root) — contract + session + gate"
+    style: controlPlane
+
+  - id: Group_Shared
+    label: "Shared inside capabilities/"
+    style: silver
+
+  - id: Group_Families
+    label: "Tool families (one *-tools.factory.ts each → { area, tools })"
+    style: gold
+
+  - id: Group_Commerce
+    label: "medusa/ — commerce data (cloned from Classic ai/tools/medusa)"
+    style: gold
+    parent: Group_Families
+
+  - id: Group_StoreOps
+    label: "Store setup, money, integrations"
+    style: gold
+    parent: Group_Families
+
+  - id: Group_Storefront
+    label: "Storefront code + design"
+    style: gold
+    parent: Group_Families
+
+  - id: Group_Assist
+    label: "Content, research, support"
+    style: gold
+    parent: Group_Families
+
+  - id: Group_Platform
+    label: "Platform modules used"
+    style: external
+
+nodes:
+  # ---------------------------------------------------------------------------
+  # Consumers
+  # ---------------------------------------------------------------------------
+  - id: mastra_driver
+    label: "MastraDriver\n(arena/mastra)"
+    style: primary
+    parent: Group_Consumer
+    metadata:
+      file: "../arena/mastra/mastra.driver.ts"
+      summary: "Adapts CapabilityTool → Mastra tools, wraps each call (binding check, timeout, result cap). Cofounder gets CONVERSATION_READ_TOOLS; worker gets the catalogue minus storefront writes; storefront agent gets the builder kit."
+      links:
+        - label: "Arena diagram"
+          url: "#agent-next-arena"
+
+  # ---------------------------------------------------------------------------
+  # Core
+  # ---------------------------------------------------------------------------
+  - id: cap_module
+    label: "CapabilitiesModule\n(imports ~45 platform modules)"
+    style: primary
+    parent: Group_Core
+    status: implemented
+    metadata:
+      file: "capabilities.module.ts"
+      summary: "Registers every factory, StoreSessionService, BuilderWorkspaceService, Browserbase sessions, PlatformKbSearch. Imports Nest modules for stores, billing, workspace, git, deployment and ~25 integrations."
+
+  - id: registry
+    label: "CapabilitiesRegistry\n(name → tool)"
+    style: gold
+    parent: Group_Core
+    status: tested
+    metadata:
+      file: "capabilities.registry.ts"
+      summary: "Every business tool a harness may hand to a model, keyed by name. Snapshot test pins names + roles."
+
+  - id: tool_contract
+    label: "tool.ts\n(CapabilityTool, ToolCallOptions)"
+    style: gold
+    parent: Group_Core
+    status: implemented
+    metadata:
+      file: "tool.ts"
+      summary: "Framework-neutral { description, inputSchema (zod), execute }. No AI SDK import: adapters live in the harness."
+
+  - id: tool_area
+    label: "tool-area.ts + role-gate.ts\n({ area, tools } → gateByRole)"
+    style: gold
+    parent: Group_Core
+    status: tested
+    metadata:
+      file: "role-gate.ts"
+      summary: "Each factory names a STORE_ACCESS area (@amboras/auth-contract); a member below the area's minimum role gets ROLE_REQUIRED at call time."
+
+  - id: store_session
+    label: "StoreSession + StoreSessionService\n(store, tokens, theme, currency)"
+    style: gold
+    parent: Group_Core
+    status: tested
+    metadata:
+      file: "store-session.service.ts"
+      summary: "Replaces Classic's AgentContext. Built per run; carries Medusa URL, admin/orchestrator tokens, theme facts (plan 011)."
+
+  - id: lazy_workspace
+    label: "lazy-workspace-session.ts\n(storefront workspace on demand)"
+    style: silver
+    parent: Group_Core
+    status: tested
+    metadata:
+      file: "lazy-workspace-session.ts"
+
+  # ---------------------------------------------------------------------------
+  # Shared
+  # ---------------------------------------------------------------------------
+  - id: confirmation
+    label: "confirmation/\nchat-confirmation · gated-call\nrecord-confirmation (D16)"
+    style: silver
+    parent: Group_Shared
+    status: tested
+    metadata:
+      file: "confirmation/"
+      summary: "Gated writes describe themselves; platform stores the call and replays it after the merchant's chat yes. Imported by 69 tool files (36 of them in medusa/)."
+
+  - id: utils
+    label: "utils/\npatch-apply · protected-paths · path-validator\nresult-cap · image-bytes · text-search …"
+    style: silver
+    parent: Group_Shared
+    status: tested
+    metadata:
+      file: "utils/"
+      summary: "12 helpers, mostly for file/ and storefront work."
+
+  - id: medusa_client
+    label: "medusa/ core\nmedusa-tool.client · utils (35 KB)\nfactory · structured-error · price units"
+    style: silver
+    parent: Group_Shared
+    status: tested
+    metadata:
+      file: "medusa/medusa-tools.factory.ts"
+      summary: "HTTP client + helpers every commerce tool uses; also imported by payments, setup, plugin, aliexpress, images, verify."
+
+  # ---------------------------------------------------------------------------
+  # Commerce (medusa/*)
+  # ---------------------------------------------------------------------------
+  - id: fam_catalog
+    label: "Catalog\nproducts (10) · categories (6) · collections (6)\nbulk · uploads (10) · reviews"
+    style: gold
+    parent: Group_Commerce
+    status: tested
+    metadata:
+      file: "medusa/products/"
+      summary: "Largest commerce area (products/ is 218 KB). Counts = registry tools matched to the folder; some tools are named dynamically and not counted."
+
+  - id: fam_custom_data
+    label: "Custom data\nmetafields (10) · metaobjects (5)"
+    style: gold
+    parent: Group_Commerce
+    status: tested
+    metadata:
+      file: "medusa/metafields/"
+
+  - id: fam_inventory
+    label: "Inventory + supply chain\ninventory (24)"
+    style: gold
+    parent: Group_Commerce
+    status: tested
+    metadata:
+      file: "medusa/inventory/"
+
+  - id: fam_orders
+    label: "Orders + customers\norders · customers · store-credit\nabandoned-checkouts · subscriptions (10)"
+    style: gold
+    parent: Group_Commerce
+    status: tested
+    metadata:
+      file: "medusa/orders/"
+
+  - id: fam_marketing
+    label: "Marketing + analytics\npromotions (7) · pdp-ab · analytics\nblog · tax (7) · url-redirects"
+    style: gold
+    parent: Group_Commerce
+    status: tested
+    metadata:
+      file: "medusa/promotions/"
+
+  # ---------------------------------------------------------------------------
+  # Store setup, money, integrations
+  # ---------------------------------------------------------------------------
+  - id: fam_setup
+    label: "setup/\ndomains · markets · shipping\ncheck_store_setup · next steps"
+    style: gold
+    parent: Group_StoreOps
+    status: tested
+    metadata:
+      file: "setup/setup-tools.factory.ts"
+
+  - id: fam_payments
+    label: "payments/ (181 KB)\nproviders · order payments · cancel"
+    style: gold
+    parent: Group_StoreOps
+    status: tested
+    metadata:
+      file: "payments/payments-tools.factory.ts"
+
+  - id: fam_plugin
+    label: "plugin/ + credentials/\ninstall/configure plugins · request_credential\nSMS capture · Meta Ads"
+    style: gold
+    parent: Group_StoreOps
+    status: tested
+    metadata:
+      file: "plugin/plugin-tools.factory.ts"
+
+  - id: fam_aliexpress
+    label: "aliexpress/\nconnect · catalog · import · orders"
+    style: gold
+    parent: Group_StoreOps
+    status: tested
+    metadata:
+      file: "aliexpress/aliexpress-tools.factory.ts"
+
+  - id: fam_interactive
+    label: "interactive/ + extras/\npublish_store · email domains\nCOD reference · bought domains"
+    style: gold
+    parent: Group_StoreOps
+    status: tested
+    metadata:
+      file: "interactive/interactive-tools.factory.ts"
+
+  - id: fam_migration
+    label: "migration/\nstatus · retry import · fidelity"
+    style: gold
+    parent: Group_StoreOps
+    status: tested
+    metadata:
+      file: "migration/migration-tools.factory.ts"
+
+  # ---------------------------------------------------------------------------
+  # Storefront code + design
+  # ---------------------------------------------------------------------------
+  - id: fam_storefront
+    label: "storefront/ — StorefrontBuilderKit\nBuilderWorkspaceService · builder-git\nbuild-failure classify · infra retry"
+    style: gold
+    parent: Group_Storefront
+    status: tested
+    metadata:
+      file: "storefront/storefront-builder.ts"
+      summary: "The storefront agent's kit (plan 005): wraps file/, verify/, web/, icons/, motion/ tools and re-gates them."
+
+  - id: fam_file
+    label: "file/\nread/write/edit/apply_patch\nsearch · logs · design tokens"
+    style: gold
+    parent: Group_Storefront
+    status: tested
+    metadata:
+      file: "file/file-tools.factory.ts"
+
+  - id: fam_verify
+    label: "verify/ (296 KB)\ncheck_build · check_storefront\nresponsive · motion · watch_preview"
+    style: gold
+    parent: Group_Storefront
+    status: tested
+    metadata:
+      file: "verify/verify-tools.factory.ts"
+
+  - id: fam_design
+    label: "web/ · icons/ · motion/\nreact-bits · Browserbase · Exa search\niconify · GSAP/Lenis install"
+    style: gold
+    parent: Group_Storefront
+    status: tested
+    metadata:
+      file: "web/web-tools.factory.ts"
+
+  - id: fam_ab
+    label: "ab/\ncreate_theme · launch_ab_test"
+    style: gold
+    parent: Group_Storefront
+    status: implemented
+    metadata:
+      file: "ab/ab-tools.factory.ts"
+
+  # ---------------------------------------------------------------------------
+  # Content, research, support
+  # ---------------------------------------------------------------------------
+  - id: fam_images
+    label: "images/\ngenerate · enhance · logo · async registry"
+    style: gold
+    parent: Group_Assist
+    status: tested
+    metadata:
+      file: "images/image-tools.factory.ts"
+
+  - id: fam_emails
+    label: "emails/\ntemplates · send test"
+    style: gold
+    parent: Group_Assist
+    status: tested
+    metadata:
+      file: "emails/email-tools.factory.ts"
+
+  - id: fam_docs
+    label: "docs/ + escalation/ + screenshot/\nplatform docs search · guides\nreport_to_amboras · take_screenshot"
+    style: gold
+    parent: Group_Assist
+    status: tested
+    metadata:
+      file: "docs/docs-tools.factory.ts"
+
+  # ---------------------------------------------------------------------------
+  # Platform modules
+  # ---------------------------------------------------------------------------
+  - id: plat_classic_ai
+    label: "modules/ai (Classic)"
+    style: warning
+    parent: Group_Platform
+    metadata:
+      summary: "Used by images/ (usage tracking, image cost), docs/ (platform-kb), escalation/ (AiEscalationService), migration/ (migration-status-reader), and CapabilitiesModule imports AiModule."
+
+  - id: plat_store_ops
+    label: "workspace · git · deployment\npreview-provider · screenshot · design-tokens"
+    style: default
+    parent: Group_Platform
+
+  - id: plat_integrations
+    label: "~25 *-integrations · plugins\ndropshipping · payment providers"
+    style: default
+    parent: Group_Platform
+
+  - id: plat_core
+    label: "stores · store-members · billing\nconfig · common/* · shared/*"
+    style: default
+    parent: Group_Platform
+
+  - id: medusa_api
+    label: "Medusa store backend\n(admin API)"
+    style: bronze
+    parent: Group_Platform
+
+edges:
+  # Consumer
+  - source: mastra_driver
+    target: registry
+    label: "tools by name"
+  - source: mastra_driver
+    target: store_session
+    label: "build per run"
+  - source: mastra_driver
+    target: confirmation
+    label: "confirm_change replay"
+    style: dashed
+  - source: mastra_driver
+    target: fam_storefront
+    label: "builder kit"
+
+  # Core wiring
+  - source: cap_module
+    target: registry
+  - source: registry
+    target: tool_area
+  - source: tool_area
+    target: tool_contract
+  - source: store_session
+    target: lazy_workspace
+  - source: confirmation
+    target: tool_contract
+
+  # Families → core (every factory returns { area, tools } of CapabilityTool)
+  - source: fam_catalog
+    target: medusa_client
+  - source: fam_custom_data
+    target: medusa_client
+  - source: fam_inventory
+    target: medusa_client
+  - source: fam_orders
+    target: medusa_client
+  - source: fam_marketing
+    target: medusa_client
+  - source: medusa_client
+    target: tool_area
+    label: "{ area, tools }"
+  - source: medusa_client
+    target: medusa_api
+    style: dashed
+    label: "HTTP"
+  - source: fam_catalog
+    target: confirmation
+    style: longDashed
+  - source: fam_inventory
+    target: confirmation
+    style: longDashed
+  - source: fam_orders
+    target: confirmation
+    style: longDashed
+
+  - source: fam_setup
+    target: tool_area
+  - source: fam_setup
+    target: medusa_client
+  - source: fam_setup
+    target: confirmation
+    style: longDashed
+  - source: fam_payments
+    target: medusa_client
+    label: "20 imports"
+  - source: fam_payments
+    target: tool_area
+  - source: fam_payments
+    target: confirmation
+    style: longDashed
+  - source: fam_setup
+    target: fam_payments
+    style: longDashed
+  - source: fam_plugin
+    target: tool_area
+  - source: fam_plugin
+    target: medusa_client
+  - source: fam_plugin
+    target: confirmation
+    style: longDashed
+  - source: fam_aliexpress
+    target: medusa_client
+  - source: fam_aliexpress
+    target: confirmation
+    style: longDashed
+  - source: fam_interactive
+    target: tool_area
+  - source: fam_interactive
+    target: fam_storefront
+    style: longDashed
+  - source: fam_migration
+    target: tool_area
+
+  - source: fam_storefront
+    target: fam_file
+  - source: fam_storefront
+    target: fam_verify
+  - source: fam_storefront
+    target: fam_design
+  - source: fam_storefront
+    target: tool_area
+    label: "re-gates wrapped tools"
+  - source: fam_file
+    target: utils
+    label: "17 imports"
+  - source: fam_file
+    target: tool_area
+  - source: fam_verify
+    target: fam_storefront
+    style: longDashed
+  - source: fam_verify
+    target: medusa_client
+    style: longDashed
+  - source: fam_design
+    target: utils
+  - source: fam_ab
+    target: tool_area
+
+  - source: fam_images
+    target: tool_area
+  - source: fam_images
+    target: medusa_client
+  - source: fam_images
+    target: utils
+  - source: fam_emails
+    target: tool_area
+  - source: fam_emails
+    target: confirmation
+    style: longDashed
+  - source: fam_docs
+    target: tool_area
+
+  # Platform
+  - source: cap_module
+    target: plat_core
+  - source: cap_module
+    target: plat_store_ops
+  - source: cap_module
+    target: plat_integrations
+  - source: cap_module
+    target: plat_classic_ai
+    style: error
+  - source: fam_images
+    target: plat_classic_ai
+    style: error
+  - source: fam_docs
+    target: plat_classic_ai
+    style: error
+  - source: fam_migration
+    target: plat_classic_ai
+    style: error
+  - source: fam_storefront
+    target: plat_store_ops
+  - source: fam_plugin
+    target: plat_integrations
+  - source: store_session
+    target: plat_core
+
+annotations:
+  - id: ann_no_arena
+    type: idea
+    message: "capabilities/ never imports arena/ (checked): the CLAUDE.md layering rule holds. Its only agent-next dependency outside itself is cofounder-media's storage client."
+    targetId: cap_module
+    targetType: node
+
+  - id: ann_classic_drift
+    type: warning
+    message: "Cloned from Classic ai/tools/medusa (D2). Classic fixes made after the clone are not all ported; no automated diff between the two copies."
+    targetId: medusa_client
+    targetType: node
+
+  - id: ann_ai_imports
+    type: warning
+    message: "Imports Classic modules/ai despite the boundary rule (images, docs, escalation, migration, AiModule)."
+    targetId: plat_classic_ai
+    targetType: node
+
+  - id: ann_counts
+    type: todo
+    message: "28 of 238 registry tools are named dynamically and not attributed to a folder in this diagram; per-family counts are a lower bound."
+    targetId: registry
+    targetType: node
